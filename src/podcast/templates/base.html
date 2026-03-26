@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Podcast{% endblock %}</title>
+  <script>
+    (function(){var t=localStorage.getItem('theme');if(t){document.documentElement.setAttribute('data-theme',t)}else if(window.matchMedia('(prefers-color-scheme:light)').matches){document.documentElement.setAttribute('data-theme','light')}else{document.documentElement.setAttribute('data-theme','dark')}})();
+  </script>
+  <link rel="stylesheet" href="/static/ui/css/reset.css">
+  <link rel="stylesheet" href="/static/ui/css/tokens.css">
+  <link rel="stylesheet" href="/static/ui/css/typography.css">
+  <link rel="stylesheet" href="/static/ui/css/components.css">
+  <link rel="stylesheet" href="/static/ui/css/layout.css">
+  <link rel="stylesheet" href="/static/ui/css/utilities.css">
+  <style>
+    body { background: var(--color-bg); min-height: 100dvh; }
+    main { padding-block: var(--space-6); }
+    .page-header { margin-block-end: var(--space-6); }
+    .page-header h1 { font-family: var(--font-display); font-size: var(--text-title); font-weight: 700; }
+    .episode-card { text-decoration: none; color: inherit; display: block; }
+    .episode-card .card__title { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+    .episode-meta { font-size: var(--text-caption); color: var(--color-text-muted); }
+    audio { width: 100%; margin-block-start: var(--space-3); }
+    .transcript-segment { margin-block-end: var(--space-3); }
+    .transcript-segment .speaker { font-weight: 600; color: var(--color-accent-text); font-size: var(--text-caption); margin-block-end: var(--space-1); }
+    .transcript-segment .text { color: var(--color-text-secondary); }
+    .empty-state { text-align: center; padding: var(--space-8); color: var(--color-text-muted); }
+    .error-box { background: var(--color-error-subtle); border: 1px solid var(--color-error); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); color: var(--color-error); font-size: var(--text-caption); }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <nav class="nav">
+    <a href="/" class="nav__brand" style="text-decoration: none;">Podcast</a>
+    <ul class="nav__links">
+      <li><a href="/" class="nav__link">Episodes</a></li>
+      <li><a href="/episodes/new" class="nav__link">New</a></li>
+      <li><a href="/feed.xml" class="nav__link" target="_blank">RSS</a></li>
+      <li><a href="/settings" class="nav__link">Settings</a></li>
+      <li>
+        <button class="theme-toggle" aria-label="Toggle theme">
+          <span class="theme-toggle__icon"></span>
+        </button>
+      </li>
+    </ul>
+  </nav>
+
+  <main class="container--narrow" style="margin-inline: auto; padding-inline: var(--space-5);">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="/static/ui/js/theme.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

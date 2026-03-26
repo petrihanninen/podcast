@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Episodes — Podcast{% endblock %}
+
+{% block content %}
+<div class="page-header flex flex--between">
+  <h1>Episodes</h1>
+  <a href="/episodes/new" class="btn btn--primary">New Episode</a>
+</div>
+
+{% if episodes %}
+<div class="stack">
+  {% for ep in episodes %}
+  <a href="/episodes/{{ ep.id }}" class="episode-card">
+    <div class="card">
+      <div class="card__title">
+        <span>{{ ep.title }}</span>
+        <span class="badge {{ status_badge(ep.status) }}">{{ status_label(ep.status) }}</span>
+      </div>
+      <p class="card__body">{{ ep.topic[:150] }}{% if ep.topic|length > 150 %}…{% endif %}</p>
+      <p class="episode-meta" style="margin-block-start: var(--space-2);">
+        {% if ep.episode_number %}#{{ ep.episode_number }} · {% endif %}
+        {% if ep.audio_duration_seconds %}{{ format_duration(ep.audio_duration_seconds) }} · {% endif %}
+        {{ ep.created_at.strftime('%b %d, %Y') }}
+      </p>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <p style="font-size: var(--text-heading); margin-block-end: var(--space-2);">No episodes yet</p>
+  <p>Create your first episode to get started.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ episode.title }} — Podcast{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="flex flex--between" style="flex-wrap: wrap; gap: var(--space-3);">
+    <h1>{{ episode.title }}</h1>
+    <span class="badge {{ status_badge(episode.status) }}">{{ status_label(episode.status) }}</span>
+  </div>
+  <p class="episode-meta" style="margin-block-start: var(--space-2);">
+    {% if episode.episode_number %}Episode #{{ episode.episode_number }} · {% endif %}
+    {% if episode.audio_duration_seconds %}{{ format_duration(episode.audio_duration_seconds) }} · {% endif %}
+    {{ episode.created_at.strftime('%b %d, %Y at %H:%M') }}
+  </p>
+</div>
+
+{% if episode.status == 'failed' %}
+<div class="error-box" style="margin-block-end: var(--space-4);">
+  <strong>Failed at: {{ episode.failed_step }}</strong><br>
+  {{ episode.error_message or 'Unknown error' }}
+</div>
+<form method="post" action="/api/episodes/{{ episode.id }}/retry" style="margin-block-end: var(--space-4);">
+  <button type="button" class="btn btn--secondary" onclick="retryEpisode()">Retry</button>
+</form>
+{% endif %}
+
+{% if episode.status == 'ready' and episode.audio_filename %}
+<div class="card" style="margin-block-end: var(--space-4);">
+  <p class="card__title">Listen</p>
+  <audio controls preload="metadata">
+    <source src="/audio/{{ episode.audio_filename }}" type="audio/mpeg">
+    Your browser does not support the audio element.
+  </audio>
+</div>
+{% endif %}
+
+<div class="card" style="margin-block-end: var(--space-4);">
+  <p class="card__title">Topic</p>
+  <p class="card__body">{{ episode.topic }}</p>
+</div>
+
+{% if episode.transcript %}
+<div class="card" style="margin-block-end: var(--space-4);">
+  <p class="card__title">Transcript</p>
+  <div id="transcript" style="margin-block-start: var(--space-3); max-height: 500px; overflow-y: auto;">
+    {% for segment in episode.transcript | from_json %}
+    <div class="transcript-segment">
+      <p class="speaker">{{ segment.speaker }}</p>
+      <p class="text">{{ segment.text }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if episode.research_notes %}
+<details style="margin-block-end: var(--space-4);">
+  <summary class="btn btn--ghost" style="cursor: pointer;">Show research notes</summary>
+  <div class="card" style="margin-block-start: var(--space-2);">
+    <pre style="white-space: pre-wrap; font-size: var(--text-caption); color: var(--color-text-secondary);">{{ episode.research_notes }}</pre>
+  </div>
+</details>
+{% endif %}
+
+<div class="flex gap-3" style="margin-block-start: var(--space-4);">
+  <a href="/" class="btn btn--ghost">Back to episodes</a>
+  <button class="btn btn--secondary" style="color: var(--color-error);" onclick="deleteEpisode()">Delete</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const episodeId = "{{ episode.id }}";
+  const isTerminal = ["ready", "failed"].includes("{{ episode.status }}");
+
+  if (!isTerminal) {
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/episodes/${episodeId}`);
+        const data = await res.json();
+        if (["ready", "failed"].includes(data.status)) {
+          clearInterval(poll);
+          location.reload();
+        }
+        // Update badge text
+        const badge = document.querySelector('.badge');
+        if (badge) {
+          const labels = {
+            pending: 'Pending', researching: 'Researching',
+            writing_transcript: 'Writing transcript',
+            generating_audio: 'Generating audio',
+            encoding: 'Encoding', ready: 'Ready', failed: 'Failed'
+          };
+          badge.textContent = labels[data.status] || data.status;
+        }
+      } catch (e) { /* ignore */ }
+    }, 5000);
+  }
+
+  async function deleteEpisode() {
+    if (!confirm('Delete this episode?')) return;
+    await fetch(`/api/episodes/${episodeId}`, { method: 'DELETE' });
+    location.href = '/';
+  }
+
+  async function retryEpisode() {
+    await fetch(`/api/episodes/${episodeId}/retry`, { method: 'POST' });
+    location.reload();
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,149 @@
+/* ==========================================================================
+   Design Tokens
+   All colors use oklch for perceptual uniformity.
+   Dark mode is default; light mode via [data-theme="light"].
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Spacing & Sizing
+   -------------------------------------------------------------------------- */
+:root {
+  /* Spacing scale (4px base) */
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.5rem;    /* 24px */
+  --space-6: 2rem;      /* 32px */
+  --space-7: 3rem;      /* 48px */
+  --space-8: 4rem;      /* 64px */
+  --space-9: 6rem;      /* 96px */
+
+  /* Border radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow: 400ms ease;
+
+  /* Type scale — responsive with clamp() */
+  --text-display:  clamp(2.5rem, 5vw + 1rem, 4rem);
+  --text-title:    clamp(1.75rem, 3vw + 0.5rem, 2.5rem);
+  --text-heading:  clamp(1.25rem, 2vw + 0.25rem, 1.75rem);
+  --text-subhead:  clamp(1.05rem, 1.2vw + 0.25rem, 1.25rem);
+  --text-body:     clamp(0.9rem, 0.5vw + 0.6rem, 1rem);
+  --text-caption:  clamp(0.8rem, 0.4vw + 0.5rem, 0.875rem);
+  --text-overline:  0.75rem;
+
+  /* Container */
+  --container-max: 1200px;
+  --container-padding: var(--space-5);
+}
+
+/* --------------------------------------------------------------------------
+   Dark Mode (default)
+   -------------------------------------------------------------------------- */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Backgrounds — achromatic (chroma 0), flat #1a1a1a base */
+  --color-bg:            oklch(15.7% 0 none);   /* #1a1a1a */
+  --color-bg-subtle:     oklch(18.5% 0 none);   /* ~#222 */
+  --color-bg-surface:    oklch(21.5% 0 none);   /* ~#2a2a2a */
+  --color-bg-elevated:   oklch(25% 0 none);      /* ~#333 */
+  --color-bg-hover:      oklch(28% 0 none);      /* ~#3a3a3a */
+  --color-bg-overlay:    oklch(32.1% 0 none);    /* highest surface */
+
+  /* Text — warm off-white from trip project */
+  --color-text:          oklch(94.7% 0.007 81);  /* #f0ede8 */
+  --color-text-secondary: oklch(70% 0.006 80);   /* muted warm */
+  --color-text-muted:    oklch(50% 0.005 80);    /* dimmed */
+
+  /* Borders */
+  --color-border:        oklch(25% 0 none);
+  --color-border-subtle: oklch(20% 0 none);
+
+  /* Accent — muted purple (from money project), overridable */
+  --color-accent:        oklch(52% 0.09 280);    /* ~#5c5c8a */
+  --color-accent-hover:  oklch(58% 0.09 280);
+  --color-accent-subtle: oklch(25% 0.04 280);
+  --color-accent-text:   oklch(72% 0.08 280);
+
+  /* Semantic — calibrated for equal perceptual lightness */
+  --color-success:       oklch(65% 0.15 145);
+  --color-success-subtle: oklch(25% 0.05 145);
+  --color-warning:       oklch(75% 0.14 80);
+  --color-warning-subtle: oklch(28% 0.05 80);
+  --color-error:         oklch(60% 0.18 25);
+  --color-error-subtle:  oklch(25% 0.06 25);
+  --color-info:          oklch(65% 0.12 240);
+  --color-info-subtle:   oklch(25% 0.04 240);
+
+  /* Shadows */
+  --shadow-sm:  0 1px 3px oklch(0% 0 none / 0.4);
+  --shadow-md:  0 4px 12px oklch(0% 0 none / 0.5);
+  --shadow-lg:  0 8px 32px oklch(0% 0 none / 0.6);
+  --shadow-glow: 0 0 20px oklch(52% 0.09 280 / 0.12);
+
+  /* Glass */
+  --glass-bg:      oklch(100% 0 none / 0.08);
+  --glass-border:  oklch(100% 0 none / 0.12);
+  --glass-blur:    8px;
+}
+
+/* --------------------------------------------------------------------------
+   Light Mode
+   -------------------------------------------------------------------------- */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Backgrounds — warm off-white */
+  --color-bg:            oklch(97% 0.004 90);
+  --color-bg-subtle:     oklch(95% 0.004 90);
+  --color-bg-surface:    oklch(100% 0 none);     /* white */
+  --color-bg-elevated:   oklch(100% 0 none);
+  --color-bg-hover:      oklch(93% 0.004 90);
+  --color-bg-overlay:    oklch(98% 0.003 90);
+
+  /* Text — near-black warm */
+  --color-text:          oklch(22% 0.005 90);
+  --color-text-secondary: oklch(40% 0.008 90);
+  --color-text-muted:    oklch(60% 0.006 90);
+
+  /* Borders */
+  --color-border:        oklch(85% 0.004 90);
+  --color-border-subtle: oklch(90% 0.003 90);
+
+  /* Accent — slightly adjusted for light bg contrast */
+  --color-accent:        oklch(45% 0.12 280);
+  --color-accent-hover:  oklch(40% 0.12 280);
+  --color-accent-subtle: oklch(92% 0.04 280);
+  --color-accent-text:   oklch(40% 0.12 280);
+
+  /* Semantic */
+  --color-success:       oklch(50% 0.16 145);
+  --color-success-subtle: oklch(92% 0.06 145);
+  --color-warning:       oklch(60% 0.16 80);
+  --color-warning-subtle: oklch(93% 0.06 80);
+  --color-error:         oklch(50% 0.2 25);
+  --color-error-subtle:  oklch(93% 0.06 25);
+  --color-info:          oklch(50% 0.14 240);
+  --color-info-subtle:   oklch(92% 0.05 240);
+
+  /* Shadows */
+  --shadow-sm:  0 1px 3px oklch(0% 0 none / 0.08);
+  --shadow-md:  0 4px 12px oklch(0% 0 none / 0.1);
+  --shadow-lg:  0 8px 32px oklch(0% 0 none / 0.12);
+  --shadow-glow: 0 0 20px oklch(45% 0.12 280 / 0.08);
+
+  /* Glass */
+  --glass-bg:      oklch(100% 0 none / 0.6);
+  --glass-border:  oklch(0% 0 none / 0.08);
+  --glass-blur:    8px;
+}

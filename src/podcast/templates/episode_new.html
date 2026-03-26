@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}New Episode — Podcast{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>New Episode</h1>
+</div>
+
+{% if error %}
+<div class="error-box" style="margin-block-end: var(--space-4);">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="/episodes/new" class="stack">
+  <div class="form-group">
+    <label for="title">Title (optional)</label>
+    <input type="text" id="title" name="title" class="input" placeholder="Auto-generated from topic if left blank">
+  </div>
+
+  <div class="form-group">
+    <label for="topic">Topic</label>
+    <textarea id="topic" name="topic" class="textarea" rows="6" placeholder="What do you want to learn about? Describe the topic, angle, or specific questions you want explored..." required></textarea>
+  </div>
+
+  <div>
+    <button type="submit" class="btn btn--primary btn--lg">Create Episode</button>
+  </div>
+</form>
+{% endblock %}

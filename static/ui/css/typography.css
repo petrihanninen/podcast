@@ -1,0 +1,158 @@
+/* ==========================================================================
+   Typography
+   Fonts: Syne (display), Inter (body/UI), Space Grotesk (data/numbers)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Google Fonts imports
+   -------------------------------------------------------------------------- */
+@import url("https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
+/* --------------------------------------------------------------------------
+   Font family tokens
+   -------------------------------------------------------------------------- */
+:root {
+  --font-display: "Syne", system-ui, sans-serif;
+  --font-body:    "Inter", system-ui, sans-serif;
+  --font-data:    "Space Grotesk", "Inter", system-ui, sans-serif;
+}
+
+/* --------------------------------------------------------------------------
+   Base typography
+   -------------------------------------------------------------------------- */
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  font-weight: 400;
+  color: var(--color-text);
+  line-height: 1.6;
+}
+
+/* --------------------------------------------------------------------------
+   Headings — Syne display font
+   -------------------------------------------------------------------------- */
+h1, h2, h3, h4, h5, h6,
+.heading {
+  font-family: var(--font-display);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+h1, .text-display {
+  font-size: var(--text-display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+h2, .text-title {
+  font-size: var(--text-title);
+  font-weight: 700;
+}
+
+h3, .text-heading {
+  font-size: var(--text-heading);
+  font-weight: 600;
+}
+
+h4, .text-subhead {
+  font-size: var(--text-subhead);
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   Body text
+   -------------------------------------------------------------------------- */
+p {
+  max-width: 65ch;
+  margin-block-end: var(--space-4);
+}
+
+.text-body {
+  font-size: var(--text-body);
+  font-weight: 400;
+}
+
+.text-secondary {
+  color: var(--color-text-secondary);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-caption {
+  font-size: var(--text-caption);
+}
+
+/* --------------------------------------------------------------------------
+   Overline / label style
+   -------------------------------------------------------------------------- */
+.text-overline,
+.label {
+  font-family: var(--font-body);
+  font-size: var(--text-overline);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-text-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   Data / numeric text — Space Grotesk
+   -------------------------------------------------------------------------- */
+.text-data,
+.data {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-value {
+  font-family: var(--font-data);
+  font-size: var(--text-title);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.stat-label {
+  font-family: var(--font-body);
+  font-size: var(--text-overline);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-text-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   Links
+   -------------------------------------------------------------------------- */
+a:not([class]) {
+  color: var(--color-accent-text);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+  transition: color var(--transition-fast);
+}
+
+a:not([class]):hover {
+  color: var(--color-accent-hover);
+  text-decoration: underline;
+}
+
+/* --------------------------------------------------------------------------
+   Code
+   -------------------------------------------------------------------------- */
+code {
+  font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
+  font-size: 0.9em;
+  padding: 0.15em 0.4em;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-surface);
+}
+
+pre code {
+  display: block;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
