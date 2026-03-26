@@ -4,19 +4,18 @@ version = "0.1.0"
 description = "Private podcast feed generator"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.34",
-    "sqlalchemy[asyncio]>=2.0",
-    "asyncpg>=0.30",
-    "alembic>=1.14",
-    "pydantic-settings>=2.7",
-    "jinja2>=3.1",
-    "python-multipart>=0.0.18",
-    "anthropic>=0.52",
+    "fastapi>=0.135",
+    "uvicorn[standard]>=0.42",
+    "sqlalchemy[asyncio]>=2.0.48",
+    "asyncpg>=0.31",
+    "alembic>=1.18",
+    "pydantic-settings>=2.13",
+    "jinja2>=3.1.6",
+    "python-multipart>=0.0.22",
+    "anthropic>=0.86",
     "feedgen>=1.0",
     "pydub>=0.25",
-    "chatterbox-tts>=0.1",
-    "torchaudio>=2.0",
+    "chatterbox-tts>=0.1.7",
     "httpx>=0.28",
 ]
 
