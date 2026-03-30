@@ -54,10 +54,81 @@ def _format_duration(seconds: int | None) -> str:
     return f"{minutes}:{secs:02d}"
 
 
+def _format_file_size(size_bytes: int | None) -> str:
+    if size_bytes is None:
+        return ""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    else:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+
+
+PIPELINE_STEPS = ["research", "transcript", "tts", "encode"]
+
+STEP_LABELS = {
+    "research": "Research",
+    "transcript": "Transcript",
+    "tts": "Audio",
+    "encode": "Encode",
+}
+
+
+def _build_pipeline_info(episode) -> list[dict]:
+    """Build ordered pipeline step info from episode jobs."""
+    jobs_by_step = {job.step: job for job in (episode.jobs or [])}
+
+    steps = []
+    for step_name in PIPELINE_STEPS:
+        job = jobs_by_step.get(step_name)
+        if job:
+            duration = None
+            if job.started_at and job.completed_at:
+                delta = job.completed_at - job.started_at
+                total_secs = int(delta.total_seconds())
+                if total_secs >= 60:
+                    duration = f"{total_secs // 60}m {total_secs % 60}s"
+                else:
+                    duration = f"{total_secs}s"
+            steps.append({
+                "name": step_name,
+                "label": STEP_LABELS[step_name],
+                "status": job.status,
+                "attempts": job.attempts,
+                "duration": duration,
+            })
+        else:
+            steps.append({
+                "name": step_name,
+                "label": STEP_LABELS[step_name],
+                "status": "waiting",
+                "attempts": 0,
+                "duration": None,
+            })
+
+    return steps
+
+
+def _get_current_step_index(episode) -> int:
+    """Return 0-based index of the current/completed pipeline step."""
+    if episode.status == "ready":
+        return len(PIPELINE_STEPS)
+    jobs_by_step = {job.step: job for job in (episode.jobs or [])}
+    for i, step_name in enumerate(PIPELINE_STEPS):
+        job = jobs_by_step.get(step_name)
+        if not job or job.status in ("pending", "running"):
+            return i
+    return len(PIPELINE_STEPS)
+
+
 # Register template globals
 templates.env.globals["status_badge"] = _status_badge
 templates.env.globals["status_label"] = _status_label
 templates.env.globals["format_duration"] = _format_duration
+templates.env.globals["format_file_size"] = _format_file_size
+templates.env.globals["build_pipeline_info"] = _build_pipeline_info
+templates.env.globals["get_current_step_index"] = _get_current_step_index
 
 
 @router.get("/", response_class=HTMLResponse)

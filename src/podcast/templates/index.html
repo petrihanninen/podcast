@@ -1,6 +1,43 @@
 {% extends "base.html" %}
 {% block title %}Episodes — Podcast{% endblock %}
 
+{% block head %}
+<style>
+  .mini-pipeline {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-block-start: var(--space-2);
+  }
+  .mini-pipeline__step {
+    height: 3px;
+    flex: 1;
+    border-radius: 2px;
+    background: var(--color-border);
+    transition: background 0.3s ease;
+  }
+  .mini-pipeline__step--completed {
+    background: var(--color-success);
+  }
+  .mini-pipeline__step--running {
+    background: var(--color-warning);
+    animation: mini-pulse 2s ease-in-out infinite;
+  }
+  .mini-pipeline__step--failed {
+    background: var(--color-error);
+  }
+  @keyframes mini-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .status-detail {
+    font-size: var(--text-overline);
+    color: var(--color-text-muted);
+    margin-block-start: var(--space-1);
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header flex flex--between">
   <h1>Episodes</h1>
@@ -20,8 +57,22 @@
       <p class="episode-meta" style="margin-block-start: var(--space-2);">
         {% if ep.episode_number %}#{{ ep.episode_number }} · {% endif %}
         {% if ep.audio_duration_seconds %}{{ format_duration(ep.audio_duration_seconds) }} · {% endif %}
+        {% if ep.audio_size_bytes %}{{ format_file_size(ep.audio_size_bytes) }} · {% endif %}
         {{ ep.created_at.strftime('%b %d, %Y') }}
+        {% if ep.published_at %} · Published {{ ep.published_at.strftime('%b %d') }}{% endif %}
       </p>
+      {% if ep.status not in ['ready', 'failed'] %}
+      {% set steps = build_pipeline_info(ep) %}
+      <div class="mini-pipeline">
+        {% for step in steps %}
+        <div class="mini-pipeline__step mini-pipeline__step--{{ step.status }}"></div>
+        {% endfor %}
+      </div>
+      <p class="status-detail">
+        Step {{ get_current_step_index(ep) + 1 }} of 4
+        {% for step in steps %}{% if step.status == 'running' %} · {{ step.label }}{% endif %}{% endfor %}
+      </p>
+      {% endif %}
     </div>
   </a>
   {% endfor %}
