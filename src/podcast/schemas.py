@@ -78,3 +78,22 @@ class SettingsResponse(BaseModel):
     host_b_name: str
 
     model_config = {"from_attributes": True}
+
+
+class LogEntryResponse(BaseModel):
+    id: int
+    timestamp: datetime
+    level: str
+    logger_name: str
+    message: str
+    source: str
+
+    model_config = {"from_attributes": True}
+
+
+class LogListResponse(BaseModel):
+    logs: list[LogEntryResponse]
+    total: int
+    page: int
+    page_size: int
+    has_more: bool

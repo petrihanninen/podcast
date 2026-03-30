@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}Logs — Podcast{% endblock %}
+
+{% block head %}
+<style>
+  .log-controls {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .log-table-wrapper {
+    max-height: 70vh;
+    overflow-y: auto;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+  }
+  .log-message {
+    font-family: var(--font-data);
+    font-size: var(--text-overline);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-width: 600px;
+  }
+  .log-timestamp {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .level-ERROR, .level-CRITICAL { color: var(--color-error); font-weight: 600; }
+  .level-WARNING { color: var(--color-warning); font-weight: 600; }
+  .level-INFO { color: var(--color-info); }
+  .level-DEBUG { color: var(--color-text-muted); }
+  .auto-refresh-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-overline);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    user-select: none;
+  }
+  .pagination {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    justify-content: center;
+    margin-block-start: var(--space-4);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header flex flex--between">
+  <h1>Logs</h1>
+  <label class="auto-refresh-label">
+    <input type="checkbox" id="autoRefresh" checked> Auto-refresh
+  </label>
+</div>
+
+<div class="log-controls" style="margin-block-end: var(--space-4);">
+  <select id="levelFilter" class="select" style="width: auto; min-width: 120px;">
+    <option value="">All levels</option>
+    <option value="CRITICAL">Critical</option>
+    <option value="ERROR">Error</option>
+    <option value="WARNING">Warning</option>
+    <option value="INFO">Info</option>
+    <option value="DEBUG">Debug</option>
+  </select>
+  <select id="sourceFilter" class="select" style="width: auto; min-width: 120px;">
+    <option value="">All sources</option>
+    <option value="worker">Worker</option>
+    <option value="web">Web</option>
+  </select>
+  <input type="text" id="searchInput" class="input" placeholder="Search logs..."
+         style="width: auto; min-width: 200px; flex: 1;">
+  <button id="refreshBtn" class="btn btn--secondary btn--sm">Refresh</button>
+</div>
+
+<div class="log-table-wrapper">
+  <table class="table" id="logTable">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Level</th>
+        <th>Source</th>
+        <th>Logger</th>
+        <th>Message</th>
+      </tr>
+    </thead>
+    <tbody id="logBody">
+      <tr><td colspan="5" style="text-align: center; color: var(--color-text-muted); padding: var(--space-6);">Loading...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  let currentPage = 1;
+  const pageSize = 100;
+  let refreshTimer = null;
+  const REFRESH_INTERVAL = 10000;
+
+  const $body    = document.getElementById('logBody');
+  const $pag     = document.getElementById('pagination');
+  const $level   = document.getElementById('levelFilter');
+  const $source  = document.getElementById('sourceFilter');
+  const $search  = document.getElementById('searchInput');
+  const $refresh = document.getElementById('refreshBtn');
+  const $auto    = document.getElementById('autoRefresh');
+
+  function escapeHtml(text) {
+    const el = document.createElement('span');
+    el.textContent = text;
+    return el.innerHTML;
+  }
+
+  async function fetchLogs() {
+    const params = new URLSearchParams({
+      page: currentPage,
+      page_size: pageSize
+    });
+    if ($level.value)  params.set('level', $level.value);
+    if ($source.value) params.set('source', $source.value);
+    if ($search.value) params.set('search', $search.value);
+
+    try {
+      const res = await fetch('/api/logs?' + params);
+      if (!res.ok) throw new Error(res.statusText);
+      const data = await res.json();
+      render(data);
+    } catch (err) {
+      $body.innerHTML =
+        '<tr><td colspan="5" style="text-align:center;color:var(--color-error);padding:var(--space-6);">' +
+        'Failed to load logs</td></tr>';
+    }
+  }
+
+  function render(data) {
+    if (!data.logs.length) {
+      $body.innerHTML =
+        '<tr><td colspan="5" style="text-align:center;color:var(--color-text-muted);padding:var(--space-6);">' +
+        'No logs found</td></tr>';
+      $pag.innerHTML = '';
+      return;
+    }
+
+    $body.innerHTML = data.logs.map(function (log) {
+      var ts = new Date(log.timestamp);
+      var time = ts.toLocaleString();
+      var srcBadge = log.source === 'worker' ? 'badge--warning' : 'badge--info';
+      return '<tr>' +
+        '<td class="log-timestamp">' + escapeHtml(time) + '</td>' +
+        '<td><span class="level-' + log.level + '">' + log.level + '</span></td>' +
+        '<td><span class="badge ' + srcBadge + '">' + log.source + '</span></td>' +
+        '<td style="font-size:var(--text-overline);color:var(--color-text-muted);">' +
+          escapeHtml(log.logger_name) + '</td>' +
+        '<td class="log-message">' + escapeHtml(log.message) + '</td>' +
+        '</tr>';
+    }).join('');
+
+    var totalPages = Math.ceil(data.total / pageSize) || 1;
+    $pag.innerHTML =
+      '<button class="btn btn--ghost btn--sm" id="prevPage"' +
+        (currentPage <= 1 ? ' disabled' : '') + '>Prev</button>' +
+      '<span style="font-size:var(--text-caption);color:var(--color-text-secondary);">' +
+        'Page ' + data.page + ' of ' + totalPages + ' (' + data.total + ' entries)' +
+      '</span>' +
+      '<button class="btn btn--ghost btn--sm" id="nextPage"' +
+        (!data.has_more ? ' disabled' : '') + '>Next</button>';
+
+    document.getElementById('prevPage').addEventListener('click', function () {
+      if (currentPage > 1) { currentPage--; fetchLogs(); }
+    });
+    document.getElementById('nextPage').addEventListener('click', function () {
+      if (data.has_more) { currentPage++; fetchLogs(); }
+    });
+  }
+
+  function startAutoRefresh() {
+    stopAutoRefresh();
+    if ($auto.checked) {
+      refreshTimer = setInterval(fetchLogs, REFRESH_INTERVAL);
+    }
+  }
+
+  function stopAutoRefresh() {
+    if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+  }
+
+  function debounce(fn, delay) {
+    var timer;
+    return function () {
+      clearTimeout(timer);
+      timer = setTimeout(fn, delay);
+    };
+  }
+
+  $level.addEventListener('change', function () { currentPage = 1; fetchLogs(); });
+  $source.addEventListener('change', function () { currentPage = 1; fetchLogs(); });
+  $search.addEventListener('input', debounce(function () { currentPage = 1; fetchLogs(); }, 400));
+  $refresh.addEventListener('click', fetchLogs);
+  $auto.addEventListener('change', startAutoRefresh);
+
+  fetchLogs();
+  startAutoRefresh();
+})();
+</script>
+{% endblock %}
