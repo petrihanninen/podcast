@@ -57,12 +57,17 @@ async def generate_transcript(episode_id: uuid.UUID) -> dict:
 
     client = get_client()
 
+    # Truncate research notes to ~12k chars (~3k tokens) to stay within rate limits
+    notes = research_notes or "No research notes available."
+    if len(notes) > 12000:
+        notes = notes[:12000] + "\n\n[...truncated]"
+
     user_message = f"""Write a podcast episode transcript about the following topic.
 
 Topic: {topic}
 
 Research notes:
-{research_notes or 'No research notes available.'}
+{notes}
 
 The two hosts are {host_a} and {host_b}. Remember to output ONLY the JSON array."""
 
@@ -72,7 +77,7 @@ The two hosts are {host_a} and {host_b}. Remember to output ONLY the JSON array.
     
     response = await client.messages.create(
         model=model,
-        max_tokens=16384,
+        max_tokens=8192,
         system=system,
         messages=[{"role": "user", "content": user_message}],
     )
