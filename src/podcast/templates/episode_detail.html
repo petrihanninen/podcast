@@ -1,12 +1,134 @@
 {% extends "base.html" %}
 {% block title %}{{ episode.title }} — Podcast{% endblock %}
 
+{% block head %}
+<style>
+  .pipeline {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    margin-block-end: var(--space-4);
+  }
+  .pipeline-step {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    text-align: center;
+  }
+  .pipeline-step__dot {
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    position: relative;
+    z-index: 1;
+    border: 2px solid var(--color-border);
+    background: var(--color-bg-surface);
+    color: var(--color-text-muted);
+    transition: all 0.3s ease;
+  }
+  .pipeline-step--completed .pipeline-step__dot {
+    background: var(--color-success-subtle);
+    border-color: var(--color-success);
+    color: var(--color-success);
+  }
+  .pipeline-step--running .pipeline-step__dot {
+    background: var(--color-warning-subtle);
+    border-color: var(--color-warning);
+    color: var(--color-warning);
+    animation: pulse-ring 2s ease-in-out infinite;
+  }
+  .pipeline-step--failed .pipeline-step__dot {
+    background: var(--color-error-subtle);
+    border-color: var(--color-error);
+    color: var(--color-error);
+  }
+  .pipeline-step--waiting .pipeline-step__dot {
+    opacity: 0.5;
+  }
+  @keyframes pulse-ring {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 0 4px var(--color-warning-subtle); }
+  }
+  .pipeline-step__label {
+    font-size: var(--text-overline);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-block-start: var(--space-2);
+  }
+  .pipeline-step--running .pipeline-step__label {
+    color: var(--color-warning);
+  }
+  .pipeline-step--completed .pipeline-step__label {
+    color: var(--color-success);
+  }
+  .pipeline-step--failed .pipeline-step__label {
+    color: var(--color-error);
+  }
+  .pipeline-step__meta {
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    margin-block-start: 2px;
+  }
+  .pipeline-step__connector {
+    position: absolute;
+    top: 1rem;
+    left: calc(50% + 1rem);
+    right: calc(-50% + 1rem);
+    height: 2px;
+    background: var(--color-border);
+    z-index: 0;
+  }
+  .pipeline-step--completed .pipeline-step__connector {
+    background: var(--color-success);
+  }
+  .pipeline-step:last-child .pipeline-step__connector {
+    display: none;
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--space-3);
+    margin-block-end: var(--space-4);
+  }
+  .detail-item {
+    padding: var(--space-3);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+  .detail-item__label {
+    font-size: var(--text-overline);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-block-end: var(--space-1);
+  }
+  .detail-item__value {
+    font-size: var(--text-caption);
+    color: var(--color-text);
+    font-weight: 500;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <div class="flex flex--between" style="flex-wrap: wrap; gap: var(--space-3);">
     <h1>{{ episode.title }}</h1>
-    <span class="badge {{ status_badge(episode.status) }}">{{ status_label(episode.status) }}</span>
+    <span id="status-badge" class="badge {{ status_badge(episode.status) }}">{{ status_label(episode.status) }}</span>
   </div>
+  {% if episode.description %}
+  <p style="color: var(--color-text-secondary); margin-block-start: var(--space-2);">{{ episode.description }}</p>
+  {% endif %}
   <p class="episode-meta" style="margin-block-start: var(--space-2);">
     {% if episode.episode_number %}Episode #{{ episode.episode_number }} · {% endif %}
     {% if episode.audio_duration_seconds %}{{ format_duration(episode.audio_duration_seconds) }} · {% endif %}
@@ -24,6 +146,33 @@
 </form>
 {% endif %}
 
+{% set steps = build_pipeline_info(episode) %}
+{% if episode.status != 'pending' or episode.jobs|length > 0 %}
+<div class="card" style="margin-block-end: var(--space-4);">
+  <p class="card__title">Pipeline</p>
+  <div id="pipeline" class="pipeline" style="margin-block-start: var(--space-3);">
+    {% for step in steps %}
+    <div class="pipeline-step pipeline-step--{{ step.status }}" data-step="{{ step.name }}">
+      {% if not loop.last %}
+      <div class="pipeline-step__connector"></div>
+      {% endif %}
+      <div class="pipeline-step__dot">
+        {% if step.status == 'completed' %}✓{% elif step.status == 'running' %}⋯{% elif step.status == 'failed' %}✕{% else %}{{ loop.index }}{% endif %}
+      </div>
+      <span class="pipeline-step__label">{{ step.label }}</span>
+      {% if step.duration %}
+      <span class="pipeline-step__meta">{{ step.duration }}</span>
+      {% elif step.status == 'running' %}
+      <span class="pipeline-step__meta">In progress…</span>
+      {% elif step.attempts > 1 %}
+      <span class="pipeline-step__meta">Attempt {{ step.attempts }}</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 {% if episode.status == 'ready' and episode.audio_filename %}
 <div class="card" style="margin-block-end: var(--space-4);">
   <p class="card__title">Listen</p>
@@ -33,6 +182,37 @@
   </audio>
 </div>
 {% endif %}
+
+<div class="detail-grid">
+  <div class="detail-item">
+    <div class="detail-item__label">Created</div>
+    <div class="detail-item__value">{{ episode.created_at.strftime('%b %d, %Y') }}<br>{{ episode.created_at.strftime('%H:%M') }}</div>
+  </div>
+  {% if episode.published_at %}
+  <div class="detail-item">
+    <div class="detail-item__label">Published</div>
+    <div class="detail-item__value">{{ episode.published_at.strftime('%b %d, %Y') }}<br>{{ episode.published_at.strftime('%H:%M') }}</div>
+  </div>
+  {% endif %}
+  {% if episode.audio_duration_seconds %}
+  <div class="detail-item">
+    <div class="detail-item__label">Duration</div>
+    <div class="detail-item__value">{{ format_duration(episode.audio_duration_seconds) }}</div>
+  </div>
+  {% endif %}
+  {% if episode.audio_size_bytes %}
+  <div class="detail-item">
+    <div class="detail-item__label">File size</div>
+    <div class="detail-item__value">{{ format_file_size(episode.audio_size_bytes) }}</div>
+  </div>
+  {% endif %}
+  {% if episode.episode_number %}
+  <div class="detail-item">
+    <div class="detail-item__label">Episode</div>
+    <div class="detail-item__value">#{{ episode.episode_number }}</div>
+  </div>
+  {% endif %}
+</div>
 
 <div class="card" style="margin-block-end: var(--space-4);">
   <p class="card__title">Topic</p>
@@ -73,28 +253,94 @@
   const episodeId = "{{ episode.id }}";
   const isTerminal = ["ready", "failed"].includes("{{ episode.status }}");
 
+  const statusLabels = {
+    pending: 'Pending', researching: 'Researching',
+    writing_transcript: 'Writing transcript',
+    generating_audio: 'Generating audio',
+    encoding: 'Encoding', ready: 'Ready', failed: 'Failed'
+  };
+
+  const statusBadgeClass = {
+    ready: 'badge--success', failed: 'badge--error',
+    pending: 'badge--info'
+  };
+
+  const stepLabels = {
+    research: 'Research', transcript: 'Transcript',
+    tts: 'Audio', encode: 'Encode'
+  };
+
+  function updatePipelineUI(jobs) {
+    const pipeline = document.getElementById('pipeline');
+    if (!pipeline || !jobs) return;
+
+    const jobsByStep = {};
+    jobs.forEach(j => { jobsByStep[j.step] = j; });
+
+    const steps = ['research', 'transcript', 'tts', 'encode'];
+    steps.forEach((stepName) => {
+      const el = pipeline.querySelector(`[data-step="${stepName}"]`);
+      if (!el) return;
+
+      const job = jobsByStep[stepName];
+      const status = job ? job.status : 'waiting';
+
+      // Update CSS class
+      el.className = `pipeline-step pipeline-step--${status}`;
+
+      // Update dot
+      const dot = el.querySelector('.pipeline-step__dot');
+      if (dot) {
+        if (status === 'completed') dot.textContent = '✓';
+        else if (status === 'running') dot.textContent = '⋯';
+        else if (status === 'failed') dot.textContent = '✕';
+        else dot.textContent = steps.indexOf(stepName) + 1;
+      }
+
+      // Update meta
+      let meta = el.querySelector('.pipeline-step__meta');
+      if (job && job.started_at && job.completed_at) {
+        const secs = Math.round((new Date(job.completed_at) - new Date(job.started_at)) / 1000);
+        const text = secs >= 60 ? `${Math.floor(secs/60)}m ${secs%60}s` : `${secs}s`;
+        if (!meta) {
+          meta = document.createElement('span');
+          meta.className = 'pipeline-step__meta';
+          el.appendChild(meta);
+        }
+        meta.textContent = text;
+      } else if (status === 'running') {
+        if (!meta) {
+          meta = document.createElement('span');
+          meta.className = 'pipeline-step__meta';
+          el.appendChild(meta);
+        }
+        meta.textContent = 'In progress…';
+      }
+    });
+  }
+
   if (!isTerminal) {
     const poll = setInterval(async () => {
       try {
         const res = await fetch(`/api/episodes/${episodeId}`);
         const data = await res.json();
+
+        // Update status badge
+        const badge = document.getElementById('status-badge');
+        if (badge) {
+          badge.textContent = statusLabels[data.status] || data.status;
+          badge.className = 'badge ' + (statusBadgeClass[data.status] || 'badge--warning');
+        }
+
+        // Update pipeline
+        updatePipelineUI(data.jobs);
+
         if (["ready", "failed"].includes(data.status)) {
           clearInterval(poll);
           location.reload();
         }
-        // Update badge text
-        const badge = document.querySelector('.badge');
-        if (badge) {
-          const labels = {
-            pending: 'Pending', researching: 'Researching',
-            writing_transcript: 'Writing transcript',
-            generating_audio: 'Generating audio',
-            encoding: 'Encoding', ready: 'Ready', failed: 'Failed'
-          };
-          badge.textContent = labels[data.status] || data.status;
-        }
       } catch (e) { /* ignore */ }
-    }, 5000);
+    }, 3000);
   }
 
   async function deleteEpisode() {

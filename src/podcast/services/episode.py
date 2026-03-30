@@ -28,7 +28,9 @@ async def create_episode(
 
 async def list_episodes(db: AsyncSession) -> list[Episode]:
     result = await db.execute(
-        select(Episode).order_by(Episode.created_at.desc())
+        select(Episode)
+        .options(selectinload(Episode.jobs))
+        .order_by(Episode.created_at.desc())
     )
     return list(result.scalars().all())
 
