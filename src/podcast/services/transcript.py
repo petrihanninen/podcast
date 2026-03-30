@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 import uuid
 
 import anthropic
@@ -32,8 +33,8 @@ Guidelines for the conversation:
 Output ONLY the JSON array, no other text."""
 
 
-async def generate_transcript(episode_id: uuid.UUID) -> None:
-    """Generate a two-host conversational transcript using Claude API."""
+async def generate_transcript(episode_id: uuid.UUID) -> dict:
+    """Generate a two-host conversational transcript using Claude API. Returns metrics dict."""
     # Read episode data and settings
     async with get_session() as db:
         episode = await db.get(Episode, episode_id)
@@ -57,6 +58,7 @@ async def generate_transcript(episode_id: uuid.UUID) -> None:
     )
 
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    model = "claude-sonnet-4-20250514"
 
     user_message = f"""Write a podcast episode transcript about the following topic.
 
@@ -67,12 +69,14 @@ Research notes:
 
 The two hosts are {host_a} and {host_b}. Remember to output ONLY the JSON array."""
 
+    t0 = time.monotonic()
     response = await client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=model,
         max_tokens=16384,
         system=system,
         messages=[{"role": "user", "content": user_message}],
     )
+    api_duration = time.monotonic() - t0
 
     # Extract text
     transcript_text = ""
@@ -103,8 +107,22 @@ The two hosts are {host_a} and {host_b}. Remember to output ONLY the JSON array.
         episode = await db.get(Episode, episode_id)
         episode.transcript = json.dumps(segments)
 
+    word_count = sum(len(seg["text"].split()) for seg in segments)
+    metrics = {
+        "model": model,
+        "input_tokens": response.usage.input_tokens,
+        "output_tokens": response.usage.output_tokens,
+        "duration_seconds": round(api_duration, 2),
+        "segment_count": len(segments),
+        "word_count": word_count,
+    }
     logger.info(
-        "Transcript generated for episode %s: %d segments",
+        "Transcript generated for episode %s: %d segments, %d words, %d in/%d out tokens, %.1fs",
         episode_id,
         len(segments),
+        word_count,
+        metrics["input_tokens"],
+        metrics["output_tokens"],
+        api_duration,
     )
+    return metrics

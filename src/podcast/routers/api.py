@@ -1,10 +1,13 @@
+import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from podcast.database import get_db
-from podcast.models import PodcastSettings
+from podcast.models import Episode, PodcastSettings
 from podcast.schemas import (
     EpisodeCreate,
     EpisodeListItem,
@@ -19,6 +22,10 @@ from podcast.services.episode import (
     list_episodes,
     retry_episode,
 )
+
+# Claude Sonnet 4 pricing (per million tokens)
+COST_PER_M_INPUT = 3.0
+COST_PER_M_OUTPUT = 15.0
 
 router = APIRouter(prefix="/api")
 
@@ -87,3 +94,98 @@ async def update_settings(data: SettingsUpdate, db: AsyncSession = Depends(get_d
         setattr(s, key, value)
 
     return s
+
+
+def _calc_cost(input_tokens: int, output_tokens: int) -> float:
+    return (input_tokens * COST_PER_M_INPUT + output_tokens * COST_PER_M_OUTPUT) / 1_000_000
+
+
+@router.get("/metrics")
+async def get_metrics(db: AsyncSession = Depends(get_db)):
+    """Aggregate metrics across all episodes."""
+    result = await db.execute(
+        select(Episode)
+        .options(selectinload(Episode.jobs))
+        .order_by(Episode.created_at.desc())
+    )
+    episodes = result.scalars().all()
+
+    episode_metrics = []
+    totals = {
+        "episodes": 0,
+        "episodes_ready": 0,
+        "total_input_tokens": 0,
+        "total_output_tokens": 0,
+        "total_cost": 0.0,
+        "total_audio_seconds": 0,
+        "total_generation_seconds": 0.0,
+        "total_tts_seconds": 0.0,
+    }
+
+    for ep in episodes:
+        totals["episodes"] += 1
+        if ep.status == "ready":
+            totals["episodes_ready"] += 1
+
+        ep_data = {
+            "id": str(ep.id),
+            "title": ep.title,
+            "status": ep.status,
+            "episode_number": ep.episode_number,
+            "audio_duration_seconds": ep.audio_duration_seconds,
+            "audio_size_bytes": ep.audio_size_bytes,
+            "created_at": ep.created_at.isoformat() if ep.created_at else None,
+            "steps": {},
+            "total_input_tokens": 0,
+            "total_output_tokens": 0,
+            "total_cost": 0.0,
+            "total_duration_seconds": 0.0,
+        }
+
+        for job in ep.jobs:
+            if job.status != "completed" or not job.metrics_json:
+                # Still include timing from started_at/completed_at if available
+                if job.started_at and job.completed_at:
+                    wall_time = (job.completed_at - job.started_at).total_seconds()
+                    ep_data["steps"][job.step] = {"wall_seconds": round(wall_time, 2)}
+                    ep_data["total_duration_seconds"] += wall_time
+                continue
+
+            metrics = json.loads(job.metrics_json)
+            step_data = dict(metrics)
+
+            # Add wall-clock time from DB timestamps
+            if job.started_at and job.completed_at:
+                wall_time = (job.completed_at - job.started_at).total_seconds()
+                step_data["wall_seconds"] = round(wall_time, 2)
+                ep_data["total_duration_seconds"] += wall_time
+
+            ep_data["steps"][job.step] = step_data
+
+            # Accumulate token counts for API steps
+            input_t = metrics.get("input_tokens", 0)
+            output_t = metrics.get("output_tokens", 0)
+            ep_data["total_input_tokens"] += input_t
+            ep_data["total_output_tokens"] += output_t
+            totals["total_input_tokens"] += input_t
+            totals["total_output_tokens"] += output_t
+
+            # Accumulate TTS time
+            if job.step == "tts":
+                totals["total_tts_seconds"] += metrics.get("duration_seconds", 0)
+
+        ep_data["total_cost"] = _calc_cost(
+            ep_data["total_input_tokens"], ep_data["total_output_tokens"]
+        )
+        totals["total_cost"] += ep_data["total_cost"]
+        totals["total_generation_seconds"] += ep_data["total_duration_seconds"]
+
+        if ep.audio_duration_seconds:
+            totals["total_audio_seconds"] += ep.audio_duration_seconds
+
+        episode_metrics.append(ep_data)
+
+    return {
+        "totals": totals,
+        "episodes": episode_metrics,
+    }
