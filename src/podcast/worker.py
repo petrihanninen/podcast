@@ -5,6 +5,7 @@ Run with: python -m podcast.worker
 """
 
 import asyncio
+import json
 import logging
 import signal
 from datetime import datetime, timezone
@@ -59,13 +60,14 @@ def _handle_signal(signum, frame):
 
 
 async def process_job(job_id, episode_id, step):
-    """Execute a single job step."""
+    """Execute a single job step. Returns metrics dict or None."""
     handler = STEP_HANDLERS.get(step)
     if not handler:
         raise ValueError(f"Unknown step: {step}")
 
     logger.info("Processing job %s: step=%s, episode=%s", job_id, step, episode_id)
-    await handler(episode_id)
+    result = await handler(episode_id)
+    return result if isinstance(result, dict) else None
 
 
 async def poll_loop():
@@ -119,13 +121,15 @@ async def _poll_jobs():
 
             # Process outside the DB session to avoid long-held transactions
             try:
-                await process_job(job_id, episode_id, step)
+                metrics = await process_job(job_id, episode_id, step)
 
                 # Mark job complete
                 async with get_session() as db:
                     job_record = await db.get(Job, job_id)
                     job_record.status = "completed"
                     job_record.completed_at = datetime.now(timezone.utc)
+                    if metrics:
+                        job_record.metrics_json = json.dumps(metrics)
 
                     # Enqueue next step or mark as ready
                     next_step = NEXT_STEP.get(step)

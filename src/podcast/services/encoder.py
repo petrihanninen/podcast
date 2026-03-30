@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import shutil
+import time
 import uuid
 
 from pydub import AudioSegment
@@ -43,12 +44,14 @@ def _encode(episode_id: uuid.UUID) -> tuple[str, int, int]:
     return mp3_filename, duration_seconds, file_size
 
 
-async def encode_mp3(episode_id: uuid.UUID) -> None:
-    """Convert WAV to MP3 and update episode metadata."""
+async def encode_mp3(episode_id: uuid.UUID) -> dict:
+    """Convert WAV to MP3 and update episode metadata. Returns metrics dict."""
     # Run encoding in a thread
+    t0 = time.monotonic()
     mp3_filename, duration_seconds, file_size = await asyncio.to_thread(
         _encode, episode_id
     )
+    encode_duration = time.monotonic() - t0
 
     # Update DB with results
     async with get_session() as db:
@@ -68,9 +71,15 @@ async def encode_mp3(episode_id: uuid.UUID) -> None:
         episode.episode_number = next_number
 
     logger.info(
-        "Encoding complete for episode %s: %ds, %d bytes, episode #%d",
+        "Encoding complete for episode %s: %ds, %d bytes, episode #%d (%.1fs)",
         episode_id,
         duration_seconds,
         file_size,
         next_number,
+        encode_duration,
     )
+    return {
+        "duration_seconds": round(encode_duration, 2),
+        "audio_duration_seconds": duration_seconds,
+        "output_size_bytes": file_size,
+    }

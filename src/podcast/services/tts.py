@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 import uuid
 
 import torchaudio as ta
@@ -50,12 +51,15 @@ def _synthesize_segments(
     host_a: str,
     voice_ref_a: str | None,
     voice_ref_b: str | None,
-) -> None:
-    """Synchronous TTS generation — runs in a thread to avoid blocking the event loop."""
+) -> dict:
+    """Synchronous TTS generation — runs in a thread. Returns metrics dict."""
     segments_dir = os.path.join(settings.audio_dir, "segments", str(episode_id))
     os.makedirs(segments_dir, exist_ok=True)
 
     model, sample_rate = _get_model()
+
+    segment_durations = []
+    total_gen_start = time.monotonic()
 
     # Generate each segment
     for i, segment in enumerate(segments):
@@ -64,6 +68,7 @@ def _synthesize_segments(
         # Skip if already generated (resume support)
         if os.path.exists(segment_path):
             logger.info("Segment %d already exists, skipping", i)
+            segment_durations.append(None)  # unknown for skipped
             continue
 
         text = segment["text"]
@@ -83,8 +88,15 @@ def _synthesize_segments(
         if voice_ref:
             kwargs["audio_prompt_path"] = voice_ref
 
+        seg_start = time.monotonic()
         wav = model.generate(**kwargs)
+        seg_duration = time.monotonic() - seg_start
+        segment_durations.append(round(seg_duration, 2))
+
         ta.save(segment_path, wav, sample_rate)
+        logger.info("Segment %d generated in %.1fs", i, seg_duration)
+
+    total_gen_duration = time.monotonic() - total_gen_start
 
     # Concatenate all segments with 300ms silence between them
     logger.info("Concatenating %d segments", len(segments))
@@ -102,15 +114,33 @@ def _synthesize_segments(
     output_wav = os.path.join(settings.audio_dir, f"{episode_id}.wav")
     combined.export(output_wav, format="wav")
 
+    audio_duration = len(combined) / 1000
+    generated = [d for d in segment_durations if d is not None]
+    avg_per_segment = sum(generated) / len(generated) if generated else 0
+
     logger.info(
-        "TTS complete for episode %s: %.1f seconds",
+        "TTS complete for episode %s: %.1fs audio, %.1fs generation (%.1fx realtime)",
         episode_id,
-        len(combined) / 1000,
+        audio_duration,
+        total_gen_duration,
+        audio_duration / total_gen_duration if total_gen_duration > 0 else 0,
     )
 
+    return {
+        "duration_seconds": round(total_gen_duration, 2),
+        "segment_count": len(segments),
+        "segments_generated": len(generated),
+        "audio_duration_seconds": round(audio_duration, 2),
+        "avg_segment_seconds": round(avg_per_segment, 2),
+        "realtime_factor": round(
+            audio_duration / total_gen_duration if total_gen_duration > 0 else 0, 2
+        ),
+        "segment_durations": segment_durations,
+    }
 
-async def synthesize_speech(episode_id: uuid.UUID) -> None:
-    """Convert transcript segments to speech using Chatterbox TTS."""
+
+async def synthesize_speech(episode_id: uuid.UUID) -> dict:
+    """Convert transcript segments to speech using Chatterbox TTS. Returns metrics dict."""
     # Read data from DB
     async with get_session() as db:
         episode = await db.get(Episode, episode_id)
@@ -126,6 +156,6 @@ async def synthesize_speech(episode_id: uuid.UUID) -> None:
     logger.info("Synthesizing %d segments for episode %s", len(segments), episode_id)
 
     # Run CPU-heavy TTS in a thread so signal handling still works
-    await asyncio.to_thread(
+    return await asyncio.to_thread(
         _synthesize_segments, segments, episode_id, host_a, voice_ref_a, voice_ref_b
     )

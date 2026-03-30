@@ -78,6 +78,7 @@ class Job(Base):
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    metrics_json: Mapped[str | None] = mapped_column(Text)
 
     episode: Mapped["Episode"] = relationship(back_populates="jobs")
 
