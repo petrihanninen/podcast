@@ -25,9 +25,15 @@ from podcast.services.episode import (
     retry_episode,
 )
 
-# Claude Sonnet 4 pricing (per million tokens)
-COST_PER_M_INPUT = 3.0
-COST_PER_M_OUTPUT = 15.0
+# Pricing per million tokens by model
+MODEL_PRICING = {
+    # Claude Sonnet 4 (used for research step)
+    "claude-sonnet-4-20250514": {"input": 3.0, "output": 15.0},
+    # DeepSeek-Chat V3.2 (used for transcript step)
+    "deepseek-chat": {"input": 0.28, "output": 0.42},
+}
+# Fallback pricing if model not recognised (Claude Sonnet 4 rates)
+DEFAULT_PRICING = {"input": 3.0, "output": 15.0}
 
 router = APIRouter(prefix="/api")
 
@@ -138,8 +144,9 @@ async def update_settings(data: SettingsUpdate, db: AsyncSession = Depends(get_d
     return s
 
 
-def _calc_cost(input_tokens: int, output_tokens: int) -> float:
-    return (input_tokens * COST_PER_M_INPUT + output_tokens * COST_PER_M_OUTPUT) / 1_000_000
+def _calc_cost(input_tokens: int, output_tokens: int, model: str = "") -> float:
+    pricing = MODEL_PRICING.get(model, DEFAULT_PRICING)
+    return (input_tokens * pricing["input"] + output_tokens * pricing["output"]) / 1_000_000
 
 
 @router.get("/metrics")
@@ -207,18 +214,20 @@ async def get_metrics(db: AsyncSession = Depends(get_db)):
             # Accumulate token counts for API steps
             input_t = metrics.get("input_tokens", 0)
             output_t = metrics.get("output_tokens", 0)
+            model_name = metrics.get("model", "")
             ep_data["total_input_tokens"] += input_t
             ep_data["total_output_tokens"] += output_t
             totals["total_input_tokens"] += input_t
             totals["total_output_tokens"] += output_t
 
+            # Calculate cost per-job (different models have different pricing)
+            ep_data["total_cost"] += _calc_cost(input_t, output_t, model_name)
+
             # Accumulate TTS time
             if job.step == "tts":
                 totals["total_tts_seconds"] += metrics.get("duration_seconds", 0)
 
-        ep_data["total_cost"] = _calc_cost(
-            ep_data["total_input_tokens"], ep_data["total_output_tokens"]
-        )
+
         totals["total_cost"] += ep_data["total_cost"]
         totals["total_generation_seconds"] += ep_data["total_duration_seconds"]
 
