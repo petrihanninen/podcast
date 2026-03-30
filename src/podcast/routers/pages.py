@@ -186,7 +186,12 @@ async def episode_detail(
     if not episode:
         return HTMLResponse("Not found", status_code=404)
     return templates.TemplateResponse(
-        "episode_detail.html", {"request": request, "episode": episode}
+        "episode_detail.html",
+        {
+            "request": request,
+            "episode": episode,
+            "password_required": bool(settings.api_password),
+        },
     )
 
 

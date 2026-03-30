@@ -141,9 +141,12 @@
   <strong>Failed at: {{ episode.failed_step }}</strong><br>
   {{ episode.error_message or 'Unknown error' }}
 </div>
-<form method="post" action="/api/episodes/{{ episode.id }}/retry" style="margin-block-end: var(--space-4);">
+<div style="display: flex; align-items: center; gap: var(--space-3); margin-block-end: var(--space-4);">
+  {% if password_required %}
+  <input type="password" id="action-password" class="input" placeholder="Password" style="max-width: 200px;">
+  {% endif %}
   <button type="button" class="btn btn--secondary" onclick="retryEpisode()">Retry</button>
-</form>
+</div>
 {% endif %}
 
 {% set steps = build_pipeline_info(episode) %}
@@ -242,8 +245,11 @@
 </details>
 {% endif %}
 
-<div class="flex gap-3" style="margin-block-start: var(--space-4);">
+<div class="flex gap-3" style="margin-block-start: var(--space-4); align-items: center;">
   <a href="/" class="btn btn--ghost">Back to episodes</a>
+  {% if password_required and episode.status != 'failed' %}
+  <input type="password" id="action-password" class="input" placeholder="Password" style="max-width: 200px;">
+  {% endif %}
   <button class="btn btn--secondary" style="color: var(--color-error);" onclick="deleteEpisode()">Delete</button>
 </div>
 {% endblock %}
@@ -343,14 +349,24 @@
     }, 3000);
   }
 
+  function authHeaders() {
+    const pw = document.getElementById('action-password');
+    if (pw && pw.value) {
+      return { 'Authorization': 'Bearer ' + pw.value };
+    }
+    return {};
+  }
+
   async function deleteEpisode() {
     if (!confirm('Delete this episode?')) return;
-    await fetch(`/api/episodes/${episodeId}`, { method: 'DELETE' });
+    const res = await fetch(`/api/episodes/${episodeId}`, { method: 'DELETE', headers: authHeaders() });
+    if (res.status === 401) { alert('Invalid password'); return; }
     location.href = '/';
   }
 
   async function retryEpisode() {
-    await fetch(`/api/episodes/${episodeId}/retry`, { method: 'POST' });
+    const res = await fetch(`/api/episodes/${episodeId}/retry`, { method: 'POST', headers: authHeaders() });
+    if (res.status === 401) { alert('Invalid password'); return; }
     location.reload();
   }
 </script>
