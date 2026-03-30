@@ -148,13 +148,12 @@ async def new_episode_page(request: Request):
 async def new_episode_submit(request: Request, db: AsyncSession = Depends(get_db)):
     form = await request.form()
     topic = form.get("topic", "").strip()
-    title = form.get("title", "").strip() or None
     if not topic:
         return templates.TemplateResponse(
             "episode_new.html",
             {"request": request, "error": "Topic is required"},
         )
-    episode = await create_episode(db, topic, title)
+    episode = await create_episode(db, topic)
     return RedirectResponse(url=f"/episodes/{episode.id}", status_code=303)
 
 
