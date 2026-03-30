@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -6,7 +7,15 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from podcast.config import settings
+from podcast.log_handler import setup_logging, start_flush_loop, stop_flush_loop
 from podcast.routers import api, feed, pages
+
+# Configure logging (adds buffered DB handler alongside default stdout)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+)
+setup_logging("web")
 
 # Ensure audio directory exists before StaticFiles mount validates it
 os.makedirs(settings.audio_dir, exist_ok=True)
@@ -15,7 +24,9 @@ os.makedirs(os.path.join(settings.audio_dir, "segments"), exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await start_flush_loop()
     yield
+    await stop_flush_loop()
 
 
 app = FastAPI(title="Podcast Generator", lifespan=lifespan)

@@ -117,3 +117,22 @@ class PodcastSettings(Base):
     )
 
     __table_args__ = (CheckConstraint("id = 1", name="single_row_settings"),)
+
+
+class LogEntry(Base):
+    __tablename__ = "log_entries"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow
+    )
+    level: Mapped[str] = mapped_column(String(10), nullable=False)
+    logger_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(String(10), nullable=False)
+
+    __table_args__ = (
+        Index("idx_log_entries_timestamp", timestamp.desc()),
+        Index("idx_log_entries_level", "level"),
+        Index("idx_log_entries_source", "source"),
+    )
