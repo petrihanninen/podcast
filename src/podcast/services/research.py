@@ -35,6 +35,7 @@ async def run_research(episode_id: uuid.UUID) -> dict:
     logger.info("Researching topic for episode %s: %s", episode_id, topic[:100])
 
     client = get_client()
+    model = 'claude-sonnet-4-20250514'
 
     t0 = time.monotonic()
     response = await client.messages.create(

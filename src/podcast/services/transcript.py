@@ -67,6 +67,9 @@ Research notes:
 The two hosts are {host_a} and {host_b}. Remember to output ONLY the JSON array."""
 
     t0 = time.monotonic()
+    
+    model = 'claude-sonnet-4-20250514'
+    
     response = await client.messages.create(
         model=model,
         max_tokens=16384,
