@@ -1,10 +1,8 @@
 import logging
 import uuid
 
-import anthropic
-
-from podcast.config import settings
 from podcast.database import get_session
+from podcast.services.claude_client import get_client
 from podcast.models import Episode
 
 logger = logging.getLogger(__name__)
@@ -35,7 +33,7 @@ async def run_research(episode_id: uuid.UUID) -> None:
 
     logger.info("Researching topic for episode %s: %s", episode_id, topic[:100])
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = get_client()
 
     response = await client.messages.create(
         model="claude-sonnet-4-20250514",
