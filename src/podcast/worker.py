@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 
 from podcast.database import get_session
+from podcast.log_handler import setup_logging, start_flush_loop, stop_flush_loop
 from podcast.models import Episode, Job
 from podcast.services.encoder import encode_mp3
 from podcast.services.research import run_research
@@ -23,6 +24,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
 )
+setup_logging("worker")
 logger = logging.getLogger(__name__)
 
 STEP_HANDLERS = {
@@ -71,7 +73,16 @@ async def process_job(job_id, episode_id, step):
 async def poll_loop():
     """Main loop: pick up pending jobs and process them."""
     logger.info("Worker started, polling every %ds", POLL_INTERVAL)
+    await start_flush_loop()
 
+    try:
+        await _poll_jobs()
+    finally:
+        await stop_flush_loop()
+
+
+async def _poll_jobs():
+    """Inner poll loop, separated so flush lifecycle wraps it."""
     while not _shutdown:
         try:
             # Pick up the next pending job

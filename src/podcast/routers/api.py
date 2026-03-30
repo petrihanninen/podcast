@@ -2,16 +2,18 @@ import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from podcast.database import get_db
-from podcast.models import Episode, PodcastSettings
+from podcast.models import Episode, LogEntry, PodcastSettings
 from podcast.schemas import (
     EpisodeCreate,
     EpisodeListItem,
     EpisodeResponse,
+    LogEntryResponse,
+    LogListResponse,
     SettingsResponse,
     SettingsUpdate,
 )
@@ -69,6 +71,46 @@ async def retry_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depen
     if not episode:
         raise HTTPException(status_code=400, detail="Episode not found or not in failed state")
     return episode
+
+
+@router.get("/logs", response_model=LogListResponse)
+async def get_logs(
+    db: AsyncSession = Depends(get_db),
+    page: int = 1,
+    page_size: int = 100,
+    level: str | None = None,
+    source: str | None = None,
+    search: str | None = None,
+):
+    query = select(LogEntry).order_by(LogEntry.timestamp.desc())
+    count_query = select(func.count(LogEntry.id))
+
+    if level:
+        query = query.where(LogEntry.level == level.upper())
+        count_query = count_query.where(LogEntry.level == level.upper())
+    if source:
+        query = query.where(LogEntry.source == source.lower())
+        count_query = count_query.where(LogEntry.source == source.lower())
+    if search:
+        query = query.where(LogEntry.message.ilike(f"%{search}%"))
+        count_query = count_query.where(LogEntry.message.ilike(f"%{search}%"))
+
+    offset = (page - 1) * page_size
+    query = query.offset(offset).limit(page_size)
+
+    result = await db.execute(query)
+    logs = result.scalars().all()
+
+    total_result = await db.execute(count_query)
+    total = total_result.scalar_one()
+
+    return LogListResponse(
+        logs=[LogEntryResponse.model_validate(log) for log in logs],
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_more=offset + page_size < total,
+    )
 
 
 @router.get("/settings", response_model=SettingsResponse)

@@ -3,10 +3,8 @@ import logging
 import time
 import uuid
 
-import anthropic
-
-from podcast.config import settings
 from podcast.database import get_session
+from podcast.services.claude_client import get_client
 from podcast.models import Episode, PodcastSettings
 
 logger = logging.getLogger(__name__)
@@ -57,8 +55,7 @@ async def generate_transcript(episode_id: uuid.UUID) -> dict:
         host_a=host_a, host_b=host_b, word_target=word_target, duration=duration
     )
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-    model = "claude-sonnet-4-20250514"
+    client = get_client()
 
     user_message = f"""Write a podcast episode transcript about the following topic.
 
