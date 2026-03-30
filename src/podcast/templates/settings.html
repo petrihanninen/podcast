@@ -6,6 +6,10 @@
   <h1>Settings</h1>
 </div>
 
+{% if error %}
+<div class="error-box" style="margin-block-end: var(--space-4);">{{ error }}</div>
+{% endif %}
+
 <form method="post" action="/settings" class="stack">
   <div class="form-group">
     <label for="title">Podcast Title</label>
@@ -39,6 +43,13 @@
       <input type="text" id="host_b_name" name="host_b_name" class="input" value="{{ settings.host_b_name }}">
     </div>
   </div>
+
+  {% if password_required %}
+  <div class="form-group">
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" class="input" placeholder="Required to save settings" required>
+  </div>
+  {% endif %}
 
   <div>
     <button type="submit" class="btn btn--primary">Save Settings</button>
