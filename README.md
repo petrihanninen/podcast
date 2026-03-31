@@ -61,8 +61,6 @@ Set `BASE_URL` to whatever your public domain is, point a reverse proxy (nginx, 
 
 ## Tests
 
-The project has a comprehensive unit test suite (235 tests) that runs in under a second with no external dependencies (no database, no API keys, no audio tools required).
-
 ```bash
 # Install test dependencies
 uv sync --extra test
