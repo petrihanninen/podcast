@@ -78,12 +78,6 @@ uv run pytest tests/test_services_transcript.py
 uv run pytest tests/test_routers_pages.py::TestFormatDuration
 ```
 
-Tests run automatically on every commit via a pre-commit hook. To set up the hook after cloning:
-
-```bash
-git config core.hooksPath .githooks
-```
-
 ## Environment variables
 
 | Variable | Description | Default |
