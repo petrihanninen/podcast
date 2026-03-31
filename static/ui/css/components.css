@@ -329,6 +329,67 @@
 }
 
 /* --------------------------------------------------------------------------
+   Swipeable
+   Touch-swipe to reveal action panels; inline buttons on desktop.
+   -------------------------------------------------------------------------- */
+.swipeable {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+
+.swipeable__content {
+  position: relative;
+  z-index: 1;
+  transition: transform var(--transition-normal);
+}
+
+.swipeable__content.is-dragging {
+  transition: none;
+}
+
+.swipeable > .swipeable__content .card {
+  border-radius: 0;
+}
+
+.swipeable__action {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding-inline: var(--space-5);
+  font-family: var(--font-body);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  user-select: none;
+  color: oklch(100% 0 none);
+}
+
+.swipeable__action--start {
+  left: 0;
+  background: var(--color-info);
+}
+
+.swipeable__action--end {
+  right: 0;
+  background: var(--color-error);
+}
+
+/* Inline action buttons — visible only on desktop */
+.swipeable__buttons {
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .swipeable__buttons {
+    display: flex;
+  }
+}
+
+/* --------------------------------------------------------------------------
    Theme Toggle
    -------------------------------------------------------------------------- */
 .theme-toggle {

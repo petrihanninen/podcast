@@ -47,34 +47,50 @@
 {% if episodes %}
 <div class="stack">
   {% for ep in episodes %}
-  <a href="/episodes/{{ ep.id }}" class="episode-card">
-    <div class="card">
-      <div class="card__title">
-        <span>{{ ep.title }}</span>
-        <span class="badge {{ status_badge(ep.status) }}">{{ status_label(ep.status) }}</span>
-      </div>
-      <p class="card__body">{{ ep.topic[:150] }}{% if ep.topic|length > 150 %}…{% endif %}</p>
-      <p class="episode-meta" style="margin-block-start: var(--space-2);">
-        {% if ep.episode_number %}#{{ ep.episode_number }} · {% endif %}
-        {% if ep.audio_duration_seconds %}{{ format_duration(ep.audio_duration_seconds) }} · {% endif %}
-        {% if ep.audio_size_bytes %}{{ format_file_size(ep.audio_size_bytes) }} · {% endif %}
-        {{ ep.created_at.strftime('%b %d, %Y') }}
-        {% if ep.published_at %} · Published {{ ep.published_at.strftime('%b %d') }}{% endif %}
-      </p>
-      {% if ep.status not in ['ready', 'failed'] %}
-      {% set steps = build_pipeline_info(ep) %}
-      <div class="mini-pipeline">
-        {% for step in steps %}
-        <div class="mini-pipeline__step mini-pipeline__step--{{ step.status }}"></div>
-        {% endfor %}
-      </div>
-      <p class="status-detail">
-        Step {{ get_current_step_index(ep) + 1 }} of 4
-        {% for step in steps %}{% if step.status == 'running' %} · {{ step.label }}{% endif %}{% endfor %}
-      </p>
-      {% endif %}
+  <div class="swipeable" data-swipeable data-episode-id="{{ ep.id }}">
+    {% if ep.status == 'failed' %}
+    <div class="swipeable__action swipeable__action--start">Retry</div>
+    {% endif %}
+    <div class="swipeable__content">
+      <a href="/episodes/{{ ep.id }}" class="episode-card">
+        <div class="card">
+          <div class="card__title">
+            <span>{{ ep.title }}</span>
+            <span class="badge {{ status_badge(ep.status) }}">{{ status_label(ep.status) }}</span>
+          </div>
+          <p class="card__body">{{ ep.topic[:150] }}{% if ep.topic|length > 150 %}…{% endif %}</p>
+          <div class="flex flex--between" style="margin-block-start: var(--space-2); align-items: center;">
+            <p class="episode-meta">
+              {% if ep.episode_number %}#{{ ep.episode_number }} · {% endif %}
+              {% if ep.audio_duration_seconds %}{{ format_duration(ep.audio_duration_seconds) }} · {% endif %}
+              {% if ep.audio_size_bytes %}{{ format_file_size(ep.audio_size_bytes) }} · {% endif %}
+              {{ ep.created_at.strftime('%b %d, %Y') }}
+              {% if ep.published_at %} · Published {{ ep.published_at.strftime('%b %d') }}{% endif %}
+            </p>
+            <div class="swipeable__buttons">
+              {% if ep.status == 'failed' %}
+              <button class="btn btn--sm btn--ghost" onclick="event.stopPropagation(); retryEpisode('{{ ep.id }}')">Retry</button>
+              {% endif %}
+              <button class="btn btn--sm btn--ghost" style="color: var(--color-error);" onclick="event.stopPropagation(); deleteEpisode('{{ ep.id }}')">Delete</button>
+            </div>
+          </div>
+          {% if ep.status not in ['ready', 'failed'] %}
+          {% set steps = build_pipeline_info(ep) %}
+          <div class="mini-pipeline">
+            {% for step in steps %}
+            <div class="mini-pipeline__step mini-pipeline__step--{{ step.status }}"></div>
+            {% endfor %}
+          </div>
+          <p class="status-detail">
+            Step {{ get_current_step_index(ep) + 1 }} of 4
+            {% for step in steps %}{% if step.status == 'running' %} · {{ step.label }}{% endif %}{% endfor %}
+          </p>
+          {% endif %}
+        </div>
+      </a>
     </div>
-  </a>
+    <div class="swipeable__action swipeable__action--end">Delete</div>
+  </div>
   {% endfor %}
 </div>
 {% else %}
@@ -83,4 +99,31 @@
   <p>Create your first episode to get started.</p>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  async function retryEpisode(id) {
+    await fetch('/api/episodes/' + id + '/retry', { method: 'POST' });
+    location.reload();
+  }
+
+  async function deleteEpisode(id) {
+    if (!confirm('Delete this episode?')) return;
+    await fetch('/api/episodes/' + id, { method: 'DELETE' });
+    location.reload();
+  }
+
+  document.addEventListener('swipe:action', function (e) {
+    var el = e.target.closest('[data-swipeable]');
+    if (!el) return;
+    var id = el.dataset.episodeId;
+
+    if (e.detail.direction === 'start') {
+      retryEpisode(id);
+    } else {
+      deleteEpisode(id);
+    }
+  });
+</script>
 {% endblock %}
