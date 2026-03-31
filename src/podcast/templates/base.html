@@ -27,6 +27,8 @@
     .transcript-segment .text { color: var(--color-text-secondary); }
     .empty-state { text-align: center; padding: var(--space-8); color: var(--color-text-muted); }
     .error-box { background: var(--color-error-subtle); border: 1px solid var(--color-error); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); color: var(--color-error); font-size: var(--text-caption); }
+    .toast { position: fixed; bottom: var(--space-5); left: 50%; translate: -50% 0; background: var(--color-surface-raised); color: var(--color-text); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); font-size: var(--text-caption); box-shadow: var(--shadow-lg, 0 4px 16px rgba(0,0,0,.25)); opacity: 0; transition: opacity .2s, translate .2s; pointer-events: none; z-index: 1000; }
+    .toast.show { opacity: 1; translate: -50% 0; }
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -36,7 +38,7 @@
     <ul class="nav__links">
       <li><a href="/" class="nav__link">Episodes</a></li>
       <li><a href="/episodes/new" class="nav__link">New</a></li>
-      <li><a href="/feed.xml" class="nav__link" target="_blank">RSS</a></li>
+      <li><button id="copy-rss" class="nav__link" style="background:none;border:none;cursor:pointer;font:inherit;padding:inherit;">RSS</button></li>
       <li><a href="/settings" class="nav__link">Settings</a></li>
       <li><a href="/metrics" class="nav__link">Metrics</a></li>
       <li><a href="/logs" class="nav__link">Logs</a></li>
@@ -55,6 +57,19 @@
   <script src="/static/ui/js/theme.js"></script>
   <script src="/static/ui/js/swipeable.js"></script>
   <script src="https://shoo.dev/shoo.js"></script>
+  <div class="toast" id="toast"></div>
+  <script>
+    document.getElementById('copy-rss').addEventListener('click', function() {
+      var url = location.origin + '/feed.xml';
+      navigator.clipboard.writeText(url).then(function() {
+        var toast = document.getElementById('toast');
+        toast.textContent = 'RSS feed URL copied to clipboard';
+        toast.classList.add('show');
+        clearTimeout(toast._tid);
+        toast._tid = setTimeout(function() { toast.classList.remove('show'); }, 2000);
+      });
+    });
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
