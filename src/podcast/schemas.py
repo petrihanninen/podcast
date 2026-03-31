@@ -4,6 +4,12 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class TtsProgress(BaseModel):
+    segments_completed: int
+    total_segments: int
+    audio_duration_seconds: float
+
+
 class EpisodeCreate(BaseModel):
     topic: str
     title: str | None = None
@@ -41,6 +47,7 @@ class EpisodeResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     jobs: list[JobResponse] = []
+    tts_progress: TtsProgress | None = None
 
     model_config = {"from_attributes": True}
 
@@ -54,6 +61,7 @@ class EpisodeListItem(BaseModel):
     audio_duration_seconds: int | None
     published_at: datetime | None
     created_at: datetime
+    tts_progress: TtsProgress | None = None
 
     model_config = {"from_attributes": True}
 

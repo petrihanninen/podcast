@@ -85,6 +85,12 @@
             Step {{ get_current_step_index(ep) + 1 }} of 4
             {% for step in steps %}{% if step.status == 'running' %} · {{ step.label }}{% endif %}{% endfor %}
           </p>
+          {% set tts_prog = get_tts_progress(ep) %}
+          {% if tts_prog %}
+          <p class="status-detail" style="margin-block-start: 2px;">
+            {{ tts_prog.segments_completed }}/{{ tts_prog.total_segments }} segments · {{ tts_prog.audio_duration_formatted }} generated
+          </p>
+          {% endif %}
           {% endif %}
         </div>
       </a>

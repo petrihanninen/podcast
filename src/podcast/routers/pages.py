@@ -12,6 +12,7 @@ from podcast.auth import require_auth_page
 from podcast.database import get_db
 from podcast.models import Episode, PodcastSettings
 from podcast.services.episode import create_episode, get_episode, list_episodes
+from podcast.services.tts import get_tts_progress as _read_tts_progress
 
 # Claude Sonnet 4 pricing (per million tokens)
 COST_PER_M_INPUT = 3.0
@@ -123,6 +124,21 @@ def _get_current_step_index(episode) -> int:
     return len(PIPELINE_STEPS)
 
 
+def _get_tts_progress(episode) -> dict | None:
+    """Get TTS progress for an episode, if generating audio."""
+    if episode.status != "generating_audio":
+        return None
+    progress = _read_tts_progress(episode.id)
+    if not progress:
+        return None
+    # Add formatted audio duration for template convenience
+    total_secs = int(progress["audio_duration_seconds"])
+    minutes = total_secs // 60
+    secs = total_secs % 60
+    progress["audio_duration_formatted"] = f"{minutes}:{secs:02d}"
+    return progress
+
+
 # Register template globals
 templates.env.globals["status_badge"] = _status_badge
 templates.env.globals["status_label"] = _status_label
@@ -130,6 +146,7 @@ templates.env.globals["format_duration"] = _format_duration
 templates.env.globals["format_file_size"] = _format_file_size
 templates.env.globals["build_pipeline_info"] = _build_pipeline_info
 templates.env.globals["get_current_step_index"] = _get_current_step_index
+templates.env.globals["get_tts_progress"] = _get_tts_progress
 
 
 @router.get("/", response_class=HTMLResponse)

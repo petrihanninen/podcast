@@ -17,7 +17,9 @@ from podcast.schemas import (
     LogListResponse,
     SettingsResponse,
     SettingsUpdate,
+    TtsProgress,
 )
+from podcast.services.tts import get_tts_progress
 from podcast.services.episode import (
     create_episode,
     delete_episode,
@@ -53,7 +55,15 @@ async def create_episode_endpoint(data: EpisodeCreate, db: AsyncSession = Depend
 @router.get("/episodes", response_model=list[EpisodeListItem])
 async def list_episodes_endpoint(db: AsyncSession = Depends(get_db)):
     episodes = await list_episodes(db)
-    return episodes
+    result = []
+    for ep in episodes:
+        item = EpisodeListItem.model_validate(ep)
+        if ep.status == "generating_audio":
+            progress = get_tts_progress(ep.id)
+            if progress:
+                item.tts_progress = TtsProgress(**progress)
+        result.append(item)
+    return result
 
 
 @router.get("/episodes/{episode_id}", response_model=EpisodeResponse)
@@ -61,7 +71,12 @@ async def get_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends
     episode = await get_episode(db, episode_id)
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
-    return episode
+    response = EpisodeResponse.model_validate(episode)
+    if episode.status == "generating_audio":
+        progress = get_tts_progress(episode.id)
+        if progress:
+            response.tts_progress = TtsProgress(**progress)
+    return response
 
 
 @router.delete("/episodes/{episode_id}")

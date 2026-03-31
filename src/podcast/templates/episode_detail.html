@@ -92,6 +92,22 @@
     display: none;
   }
 
+  .tts-progress-bar {
+    width: 100%;
+    max-width: 80px;
+    height: 3px;
+    background: var(--color-border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-block-start: 4px;
+  }
+  .tts-progress-bar__fill {
+    height: 100%;
+    background: var(--color-warning);
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+
   .detail-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -208,7 +224,19 @@
       {% if step.duration %}
       <span class="pipeline-step__meta">{{ step.duration }}</span>
       {% elif step.status == 'running' %}
-      <span class="pipeline-step__meta">In progress…</span>
+        {% if step.name == 'tts' %}
+          {% set tts_prog = get_tts_progress(episode) %}
+          {% if tts_prog %}
+          <span class="pipeline-step__meta">{{ tts_prog.segments_completed }}/{{ tts_prog.total_segments }} · {{ tts_prog.audio_duration_formatted }}</span>
+          <div class="tts-progress-bar">
+            <div class="tts-progress-bar__fill" style="width: {{ (tts_prog.segments_completed / tts_prog.total_segments * 100) if tts_prog.total_segments > 0 else 0 }}%"></div>
+          </div>
+          {% else %}
+          <span class="pipeline-step__meta">Starting…</span>
+          {% endif %}
+        {% else %}
+        <span class="pipeline-step__meta">In progress…</span>
+        {% endif %}
       {% elif step.attempts > 1 %}
       <span class="pipeline-step__meta">Attempt {{ step.attempts }}</span>
       {% endif %}
@@ -336,10 +364,11 @@
     tts: 'Audio', encode: 'Encode'
   };
 
-  function updatePipelineUI(jobs) {
+  function updatePipelineUI(data) {
     const pipeline = document.getElementById('pipeline');
-    if (!pipeline || !jobs) return;
+    if (!pipeline || !data.jobs) return;
 
+    const jobs = data.jobs;
     const jobsByStep = {};
     jobs.forEach(j => { jobsByStep[j.step] = j; });
 
@@ -374,6 +403,29 @@
           el.appendChild(meta);
         }
         meta.textContent = text;
+      } else if (status === 'running' && stepName === 'tts' && data.tts_progress) {
+        const p = data.tts_progress;
+        if (!meta) {
+          meta = document.createElement('span');
+          meta.className = 'pipeline-step__meta';
+          el.appendChild(meta);
+        }
+        const totalSecs = Math.floor(p.audio_duration_seconds);
+        const mins = Math.floor(totalSecs / 60);
+        const secs = totalSecs % 60;
+        const durStr = `${mins}:${secs.toString().padStart(2, '0')}`;
+        meta.textContent = `${p.segments_completed}/${p.total_segments} · ${durStr}`;
+
+        // Add or update progress bar
+        let bar = el.querySelector('.tts-progress-bar');
+        if (!bar) {
+          bar = document.createElement('div');
+          bar.className = 'tts-progress-bar';
+          bar.innerHTML = '<div class="tts-progress-bar__fill"></div>';
+          el.appendChild(bar);
+        }
+        const pct = p.total_segments > 0 ? (p.segments_completed / p.total_segments * 100) : 0;
+        bar.querySelector('.tts-progress-bar__fill').style.width = `${pct}%`;
       } else if (status === 'running') {
         if (!meta) {
           meta = document.createElement('span');
@@ -381,6 +433,9 @@
           el.appendChild(meta);
         }
         meta.textContent = 'In progress…';
+        // Remove progress bar if it was there from a previous state
+        const bar = el.querySelector('.tts-progress-bar');
+        if (bar) bar.remove();
       }
     });
   }
@@ -399,7 +454,7 @@
         }
 
         // Update pipeline
-        updatePipelineUI(data.jobs);
+        updatePipelineUI(data);
 
         if (["ready", "failed"].includes(data.status)) {
           clearInterval(poll);
