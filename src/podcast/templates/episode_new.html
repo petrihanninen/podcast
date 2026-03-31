@@ -16,6 +16,13 @@
     <textarea id="topic" name="topic" class="textarea" rows="6" placeholder="What do you want to learn about? Describe the topic, angle, or specific questions you want explored..." required></textarea>
   </div>
 
+  {% if password_required %}
+  <div class="form-group">
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" class="input" placeholder="Required to create episodes" required>
+  </div>
+  {% endif %}
+
   <div>
     <button type="submit" class="btn btn--primary btn--lg">Create Episode</button>
   </div>
