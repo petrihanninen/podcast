@@ -117,6 +117,51 @@
     color: var(--color-text);
     font-weight: 500;
   }
+
+  .episode-logs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-overline);
+  }
+  .episode-logs-table th {
+    text-align: left;
+    padding: var(--space-2) var(--space-3);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-surface);
+    position: sticky;
+    top: 0;
+  }
+  .episode-logs-table td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+  }
+  .episode-logs-table .log-timestamp {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--color-text-muted);
+  }
+  .episode-logs-table .log-message {
+    font-family: var(--font-data);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .episode-logs-wrap {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-block-start: var(--space-2);
+  }
+  .level-ERROR, .level-CRITICAL { color: var(--color-error); font-weight: 600; }
+  .level-WARNING { color: var(--color-warning); font-weight: 600; }
+  .level-INFO { color: var(--color-info); }
+  .level-DEBUG { color: var(--color-text-muted); }
 </style>
 {% endblock %}
 
@@ -242,6 +287,27 @@
 </details>
 {% endif %}
 
+<details id="logsDetails" style="margin-block-end: var(--space-4);">
+  <summary class="btn btn--ghost" style="cursor: pointer;">Show logs</summary>
+  <div id="logsContainer" class="episode-logs-wrap">
+    <table class="episode-logs-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Level</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody id="logsBody">
+        <tr><td colspan="3" style="text-align: center; color: var(--color-text-muted); padding: var(--space-4);">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div id="logsFooter" style="margin-block-start: var(--space-2); display: none;">
+    <a href="/logs" class="btn btn--ghost btn--sm">View all logs</a>
+  </div>
+</details>
+
 <div class="flex gap-3" style="margin-block-start: var(--space-4);">
   <a href="/" class="btn btn--ghost">Back to episodes</a>
   <button class="btn btn--secondary" style="color: var(--color-error);" onclick="deleteEpisode()">Delete</button>
@@ -353,5 +419,66 @@
     await fetch(`/api/episodes/${episodeId}/retry`, { method: 'POST' });
     location.reload();
   }
+
+  // Episode logs
+  (function () {
+    const details = document.getElementById('logsDetails');
+    const body = document.getElementById('logsBody');
+    const footer = document.getElementById('logsFooter');
+    let loaded = false;
+
+    function escapeHtml(text) {
+      const el = document.createElement('span');
+      el.textContent = text;
+      return el.innerHTML;
+    }
+
+    async function fetchEpisodeLogs() {
+      if (loaded) return;
+      loaded = true;
+      try {
+        const params = new URLSearchParams({
+          search: episodeId,
+          page_size: '50'
+        });
+        const res = await fetch('/api/logs?' + params);
+        if (!res.ok) throw new Error(res.statusText);
+        const data = await res.json();
+
+        if (!data.logs.length) {
+          body.innerHTML =
+            '<tr><td colspan="3" style="text-align:center;color:var(--color-text-muted);padding:var(--space-4);">' +
+            'No logs found for this episode</td></tr>';
+          return;
+        }
+
+        body.innerHTML = data.logs.map(function (log) {
+          var ts = new Date(log.timestamp);
+          var time = ts.toLocaleString();
+          return '<tr>' +
+            '<td class="log-timestamp">' + escapeHtml(time) + '</td>' +
+            '<td><span class="level-' + log.level + '">' + log.level + '</span></td>' +
+            '<td class="log-message">' + escapeHtml(log.message) + '</td>' +
+            '</tr>';
+        }).join('');
+
+        footer.style.display = 'block';
+        if (data.total > 50) {
+          footer.innerHTML =
+            '<span style="font-size:var(--text-overline);color:var(--color-text-muted);">Showing 50 of ' + data.total + ' entries</span> ' +
+            '<a href="/logs" class="btn btn--ghost btn--sm">View all logs</a>';
+        }
+      } catch (err) {
+        body.innerHTML =
+          '<tr><td colspan="3" style="text-align:center;color:var(--color-error);padding:var(--space-4);">' +
+          'Failed to load logs</td></tr>';
+        loaded = false;
+      }
+    }
+
+    details.addEventListener('toggle', function () {
+      if (details.open) fetchEpisodeLogs();
+    });
+  })();
 </script>
 {% endblock %}
