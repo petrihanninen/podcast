@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}My Identity — Podcast{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>My Identity</h1>
+  <p style="color: var(--color-text-muted); margin-block-start: var(--space-2);">
+    Use this page to grab your <code>pairwise_sub</code> for the <code>ALLOWED_SUB</code> env var.
+    Delete the <code>/auth/me</code> route after you're done.
+  </p>
+</div>
+
+<div class="card" style="margin-block-end: var(--space-4);">
+  <p class="card__title">Sign in first</p>
+  <div id="identity-info" style="margin-block-start: var(--space-3);">
+    <p id="identity-status" style="color: var(--color-text-muted);">Checking identity…</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  async function init() {
+    const identity = window.Shoo?.getIdentity();
+
+    if (!identity || !identity.token) {
+      document.getElementById('identity-status').innerHTML =
+        'Not signed in. <a href="/auth/login?next=/auth/me">Sign in</a> first.';
+      return;
+    }
+
+    // Decode JWT payload (no verification — just for display)
+    try {
+      const payload = JSON.parse(atob(identity.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      const info = document.getElementById('identity-info');
+      info.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+          <div>
+            <div style="font-size: var(--text-overline); font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">pairwise_sub</div>
+            <code style="font-size: var(--text-body); word-break: break-all; user-select: all;">${payload.pairwise_sub || 'N/A'}</code>
+          </div>
+          <div>
+            <div style="font-size: var(--text-overline); font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">User ID</div>
+            <code style="font-size: var(--text-body); word-break: break-all; user-select: all;">${identity.userId || 'N/A'}</code>
+          </div>
+          ${payload.email ? `<div>
+            <div style="font-size: var(--text-overline); font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Email</div>
+            <code style="font-size: var(--text-body);">${payload.email}</code>
+          </div>` : ''}
+        </div>
+        <p style="margin-block-start: var(--space-4); font-size: var(--text-caption); color: var(--color-text-muted);">
+          Set <code>ALLOWED_SUB=${payload.pairwise_sub || ''}</code> in your <code>.env</code> file.
+        </p>
+      `;
+    } catch (e) {
+      document.getElementById('identity-status').textContent = 'Failed to decode token: ' + e.message;
+    }
+  }
+
+  if (window.Shoo) {
+    init();
+  } else {
+    window.addEventListener('load', () => setTimeout(init, 100));
+  }
+</script>
+{% endblock %}

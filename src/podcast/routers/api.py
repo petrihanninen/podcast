@@ -1,13 +1,13 @@
 import json
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from podcast.auth import require_auth
 from podcast.database import get_db
-from podcast.dependencies import require_password
 from podcast.models import Episode, LogEntry, PodcastSettings
 from podcast.schemas import (
     EpisodeCreate,
@@ -44,8 +44,8 @@ async def health():
     return {"status": "ok"}
 
 
-@router.post("/episodes", response_model=EpisodeResponse, dependencies=[Depends(require_password)])
-async def create_episode_endpoint(data: EpisodeCreate, db: AsyncSession = Depends(get_db)):
+@router.post("/episodes", response_model=EpisodeResponse)
+async def create_episode_endpoint(data: EpisodeCreate, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
     episode = await create_episode(db, data.topic, data.title, data.description)
     return episode
 
@@ -64,16 +64,16 @@ async def get_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends
     return episode
 
 
-@router.delete("/episodes/{episode_id}", dependencies=[Depends(require_password)])
-async def delete_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+@router.delete("/episodes/{episode_id}")
+async def delete_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
     deleted = await delete_episode(db, episode_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Episode not found")
     return {"status": "deleted"}
 
 
-@router.post("/episodes/{episode_id}/retry", response_model=EpisodeResponse, dependencies=[Depends(require_password)])
-async def retry_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+@router.post("/episodes/{episode_id}/retry", response_model=EpisodeResponse)
+async def retry_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
     episode = await retry_episode(db, episode_id)
     if not episode:
         raise HTTPException(status_code=400, detail="Episode not found or not in failed state")
@@ -130,8 +130,8 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
     return s
 
 
-@router.put("/settings", response_model=SettingsResponse, dependencies=[Depends(require_password)])
-async def update_settings(data: SettingsUpdate, db: AsyncSession = Depends(get_db)):
+@router.put("/settings", response_model=SettingsResponse)
+async def update_settings(data: SettingsUpdate, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
     s = await db.get(PodcastSettings, 1)
     if not s:
         s = PodcastSettings()

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Sign in — Podcast{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: var(--space-8);">
+  <p id="login-status" style="color: var(--color-text-muted);">Signing in…</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const nextUrl = {{ next_url | tojson }};
+
+  async function init() {
+    const identity = window.Shoo?.getIdentity();
+
+    if (identity && identity.token) {
+      document.getElementById('login-status').textContent = 'Verifying…';
+      try {
+        const res = await fetch('/auth/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: identity.token }),
+        });
+        if (res.ok) {
+          window.location.href = nextUrl;
+          return;
+        }
+        // Token rejected — clear and retry
+        window.Shoo.clearIdentity();
+      } catch (e) {
+        // Network error — fall through to sign-in
+      }
+    }
+
+    // No identity (or cleared) — start Shoo sign-in
+    const returnTo = '/auth/login?next=' + encodeURIComponent(nextUrl);
+    window.Shoo.startSignIn({ returnTo });
+  }
+
+  // Give shoo.js a moment to initialize
+  if (window.Shoo) {
+    init();
+  } else {
+    window.addEventListener('load', () => setTimeout(init, 100));
+  }
+</script>
+{% endblock %}

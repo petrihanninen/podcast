@@ -2,13 +2,16 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
+from urllib.parse import quote
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from podcast.auth import RequiresLogin
 from podcast.config import settings
 from podcast.log_handler import setup_logging, start_flush_loop, stop_flush_loop
-from podcast.routers import api, feed, pages
+from podcast.routers import api, auth, feed, pages
 
 # Configure logging (adds buffered DB handler alongside default stdout)
 logging.basicConfig(
@@ -31,6 +34,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Podcast Generator", lifespan=lifespan)
 
+
+@app.exception_handler(RequiresLogin)
+async def requires_login_handler(request: Request, exc: RequiresLogin):
+    """Redirect unauthenticated users to the login page."""
+    return RedirectResponse(
+        url=f"/auth/login?next={quote(exc.next_url, safe='')}", status_code=303
+    )
+
+
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -48,6 +60,7 @@ def from_json(value):
 pages.templates.env.filters["from_json"] = from_json
 
 # Routers
+app.include_router(auth.router)
 app.include_router(api.router)
 app.include_router(feed.router)
 app.include_router(pages.router)
