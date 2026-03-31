@@ -30,12 +30,6 @@ async def login_page(request: Request, next: str = "/"):
     )
 
 
-@router.get("/callback", response_class=HTMLResponse)
-async def auth_callback(request: Request):
-    """Callback page for Shoo OAuth — shoo.js handles the code exchange."""
-    return templates.TemplateResponse("auth_callback.html", {"request": request})
-
-
 @router.post("/verify")
 async def verify_token(request: Request):
     """Verify a Shoo id_token, check authorization, and set a session cookie."""
