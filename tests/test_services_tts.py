@@ -144,20 +144,21 @@ class TestSynthesizeSegments:
             with patch("podcast.services.tts.os.path.exists", side_effect=exists_side_effect):
                 with patch("podcast.services.tts.os.makedirs"):
                     with patch("podcast.services.tts.ta.save"):
-                        with patch("podcast.services.tts.AudioSegment") as mock_as:
-                            mock_as.silent.return_value = mock_audio_segment
-                            mock_as.empty.return_value = mock_audio_segment
-                            mock_as.from_wav.return_value = mock_audio_segment
+                        with patch("podcast.services.tts._write_progress"):
+                            with patch("podcast.services.tts.AudioSegment") as mock_as:
+                                mock_as.silent.return_value = mock_audio_segment
+                                mock_as.empty.return_value = mock_audio_segment
+                                mock_as.from_wav.return_value = mock_audio_segment
 
-                            with patch("podcast.services.tts._get_voice_ref_path", return_value=None):
-                                with patch("podcast.services.tts.settings") as mock_settings:
-                                    mock_settings.audio_dir = "/tmp/audio"
+                                with patch("podcast.services.tts._get_voice_ref_path", return_value=None):
+                                    with patch("podcast.services.tts.settings") as mock_settings:
+                                        mock_settings.audio_dir = "/tmp/audio"
 
-                                    from podcast.services.tts import _synthesize_segments
+                                        from podcast.services.tts import _synthesize_segments
 
-                                    metrics = _synthesize_segments(
-                                        segments, episode_id, "Alex", None, None
-                                    )
+                                        metrics = _synthesize_segments(
+                                            segments, episode_id, "Alex", None, None
+                                        )
 
         # Model generate should only be called for the second segment
         assert mock_model.generate.call_count == 1

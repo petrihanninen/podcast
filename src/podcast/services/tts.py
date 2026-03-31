@@ -106,8 +106,8 @@ def _synthesize_segments(
         if os.path.exists(segment_path):
             logger.info("Segment %d already exists, skipping", i)
             segment_durations.append(None)  # unknown for skipped
-            info = ta.info(segment_path)
-            cumulative_audio_seconds += info.num_frames / info.sample_rate
+            existing = AudioSegment.from_wav(segment_path)
+            cumulative_audio_seconds += len(existing) / 1000.0
             _write_progress(segments_dir, i + 1, len(segments), cumulative_audio_seconds)
             continue
 

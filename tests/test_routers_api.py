@@ -27,8 +27,10 @@ def _make_test_client(db_mock):
         yield db_mock
 
     from podcast.database import get_db
+    from podcast.auth import require_auth
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[require_auth] = lambda: "test-user"
     return TestClient(app)
 
 
