@@ -174,7 +174,7 @@ async def new_episode_submit(request: Request, db: AsyncSession = Depends(get_db
                 "password_required": bool(settings.api_password),
             },
         )
-    episode = await create_episode(db, topic, title)
+    episode = await create_episode(db, topic)
     return RedirectResponse(url=f"/episodes/{episode.id}", status_code=303)
 
 

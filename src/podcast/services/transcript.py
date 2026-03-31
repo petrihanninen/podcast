@@ -175,10 +175,29 @@ The two hosts are {host_a} and {host_b}. Remember to output ONLY the JSON array.
         if "speaker" not in seg or "text" not in seg:
             raise RuntimeError(f"Invalid segment format: {seg}")
 
-    # Save results
+    # Save transcript
     async with get_session() as db:
         episode = await db.get(Episode, episode_id)
         episode.transcript = json.dumps(segments)
+
+    # Generate a refined title based on the actual transcript content
+    try:
+        title_response = await client.messages.create(
+            model="claude-haiku-4-20250414",
+            max_tokens=100,
+            messages=[{
+                "role": "user",
+                "content": f"Based on this podcast transcript, generate a short, catchy episode title (max 8 words). Output ONLY the title, no quotes.\n\nTopic: {topic}\n\nTranscript excerpt:\n{transcript_text[:3000]}",
+            }],
+        )
+        new_title = title_response.content[0].text.strip().strip('"\'')
+        if new_title:
+            async with get_session() as db:
+                episode = await db.get(Episode, episode_id)
+                episode.title = new_title[:200]
+            logger.info("Refined title for episode %s: %s", episode_id, new_title)
+    except Exception:
+        logger.warning("Failed to refine episode title, keeping original", exc_info=True)
 
     word_count = sum(len(seg["text"].split()) for seg in segments)
     metrics = {
