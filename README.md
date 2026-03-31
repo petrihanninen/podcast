@@ -59,6 +59,56 @@ To host this properly, you basically need:
 
 Set `BASE_URL` to whatever your public domain is, point a reverse proxy (nginx, Caddy, etc.) at port 8000, and you're good. The RSS feed lives at `/feed.xml` — add that to your podcast app of choice.
 
+## Tests
+
+The project has a comprehensive unit test suite (235 tests) that runs in under a second with no external dependencies (no database, no API keys, no audio tools required).
+
+```bash
+# Install test dependencies
+uv sync --extra test
+
+# Run all tests
+uv run pytest
+
+# Run with verbose output
+uv run pytest -v
+
+# Run a specific test file
+uv run pytest tests/test_services_transcript.py
+
+# Run a specific test class or method
+uv run pytest tests/test_routers_pages.py::TestFormatDuration
+```
+
+Tests run automatically on every commit via a pre-commit hook. To set up the hook after cloning:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+### Test structure
+
+```
+tests/
+├── conftest.py                  # Shared fixtures and factory helpers
+├── test_config.py               # Settings loading and env overrides
+├── test_schemas.py              # Pydantic request/response validation
+├── test_models.py               # SQLAlchemy model metadata and constraints
+├── test_log_handler.py          # Buffered DB logging handler
+├── test_main.py                 # App initialization and JSON filter
+├── test_worker.py               # Job pipeline dispatch and signal handling
+├── test_services_claude_client.py  # Singleton client configuration
+├── test_services_episode.py     # Episode CRUD operations
+├── test_services_research.py    # Claude research integration
+├── test_services_transcript.py  # Transcript generation and validation
+├── test_services_tts.py         # Voice ref resolution and TTS orchestration
+├── test_services_encoder.py     # WAV→MP3 encoding and cleanup
+├── test_services_feed.py        # RSS feed generation
+├── test_routers_api.py          # REST API endpoints
+├── test_routers_feed.py         # RSS feed endpoint
+└── test_routers_pages.py        # Template helper functions
+```
+
 ## Environment variables
 
 | Variable | Description | Default |
