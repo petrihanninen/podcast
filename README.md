@@ -59,6 +59,31 @@ To host this properly, you basically need:
 
 Set `BASE_URL` to whatever your public domain is, point a reverse proxy (nginx, Caddy, etc.) at port 8000, and you're good. The RSS feed lives at `/feed.xml` — add that to your podcast app of choice.
 
+## Tests
+
+```bash
+# Install test dependencies
+uv sync --extra test
+
+# Run all tests
+uv run pytest
+
+# Run with verbose output
+uv run pytest -v
+
+# Run a specific test file
+uv run pytest tests/test_services_transcript.py
+
+# Run a specific test class or method
+uv run pytest tests/test_routers_pages.py::TestFormatDuration
+```
+
+Tests run automatically on every commit via a pre-commit hook. To set up the hook after cloning:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Environment variables
 
 | Variable | Description | Default |
