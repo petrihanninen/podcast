@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import time
 import uuid
 
@@ -29,6 +30,37 @@ Guidelines for the conversation:
 - Make sure the listener learns something genuinely interesting and useful
 
 Output ONLY the JSON array, no other text."""
+
+
+def _repair_json(text: str) -> str:
+    """Attempt common JSON fixes for LLM output."""
+    # Remove trailing commas before ] or }
+    text = re.sub(r",\s*([}\]])", r"\1", text)
+    # Remove any non-JSON text before the first [ or after the last ]
+    start = text.find("[")
+    end = text.rfind("]")
+    if start != -1 and end != -1 and end > start:
+        text = text[start : end + 1]
+    return text
+
+
+def _parse_json_with_repair(text: str) -> list:
+    """Parse JSON, attempting repairs on failure."""
+    # First: try parsing as-is
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        original_error = exc
+        logger.warning("Initial JSON parse failed: %s — attempting repair", exc)
+
+    # Second: try common fixes
+    try:
+        repaired = _repair_json(text)
+        return json.loads(repaired)
+    except json.JSONDecodeError:
+        logger.warning("Repaired JSON still invalid — re-raising original error")
+
+    raise original_error
 
 
 async def generate_transcript(episode_id: uuid.UUID) -> dict:
@@ -98,7 +130,7 @@ The two hosts are {host_a} and {host_b}. Remember to output ONLY the JSON array.
         lines = [l for l in lines if not l.strip().startswith("```")]
         transcript_text = "\n".join(lines)
 
-    segments = json.loads(transcript_text)
+    segments = _parse_json_with_repair(transcript_text)
     if not isinstance(segments, list) or len(segments) == 0:
         raise RuntimeError("Invalid transcript format: expected non-empty JSON array")
 
