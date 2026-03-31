@@ -149,6 +149,12 @@ templates.env.globals["get_current_step_index"] = _get_current_step_index
 templates.env.globals["get_tts_progress"] = _get_tts_progress
 
 
+@router.get("/shoo/callback", response_class=HTMLResponse)
+async def shoo_callback(request: Request):
+    """Callback page for Shoo OAuth — shoo.js handles the code exchange."""
+    return templates.TemplateResponse("auth_callback.html", {"request": request})
+
+
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request, db: AsyncSession = Depends(get_db)):
     episodes = await list_episodes(db)
