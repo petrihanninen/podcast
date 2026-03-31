@@ -7,8 +7,10 @@ from fastapi.templating import Jinja2Templates
 from podcast.auth import (
     SESSION_COOKIE,
     SESSION_MAX_AGE,
+    RequiresLogin,
     create_session_cookie,
     get_current_user,
+    verify_session_cookie,
     verify_shoo_token,
 )
 from podcast.config import settings
@@ -78,4 +80,11 @@ async def me_page(request: Request):
 
     Delete this route after grabbing your sub for the ALLOWED_SUB env var.
     """
+    # Check if authenticated (without ALLOWED_SUB enforcement, since this is a setup route)
+    cookie = request.cookies.get(SESSION_COOKIE)
+    if not cookie:
+        raise RequiresLogin(next_url="/auth/me")
+    sub = verify_session_cookie(cookie)
+    if not sub:
+        raise RequiresLogin(next_url="/auth/me")
     return templates.TemplateResponse("auth_me.html", {"request": request})
