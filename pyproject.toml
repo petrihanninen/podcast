@@ -20,9 +20,21 @@ dependencies = [
     "PyJWT[crypto]>=2.8",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28",
+]
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src"]
