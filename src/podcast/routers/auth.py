@@ -1,8 +1,12 @@
 """Auth routes: login flow, token verification, session management."""
 
+import logging
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+
+logger = logging.getLogger(__name__)
 
 from podcast.auth import (
     SESSION_COOKIE,
@@ -41,6 +45,7 @@ async def verify_token(request: Request):
     try:
         claims = verify_shoo_token(token)
     except Exception as e:
+        logger.warning("Token verification failed: %s", e)
         return JSONResponse({"error": f"Invalid token: {e}"}, status_code=401)
 
     sub = claims["pairwise_sub"]

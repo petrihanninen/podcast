@@ -25,7 +25,11 @@
 
     if (!identity || !identity.token) {
       document.getElementById('identity-status').innerHTML =
-        'Not signed in. <a href="/auth/login?next=/auth/me">Sign in</a> first.';
+        'Not signed in. <a href="#" id="shoo-signin">Sign in</a> first.';
+      document.getElementById('shoo-signin').addEventListener('click', function(e) {
+        e.preventDefault();
+        window.Shoo.startSignIn({ returnTo: '/auth/me' });
+      });
       return;
     }
 
