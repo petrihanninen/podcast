@@ -84,7 +84,6 @@ Tests run automatically on every commit via a pre-commit hook. To set up the hoo
 git config core.hooksPath .githooks
 ```
 
-
 ## Environment variables
 
 | Variable | Description | Default |
