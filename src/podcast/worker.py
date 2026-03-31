@@ -70,12 +70,46 @@ async def process_job(job_id, episode_id, step):
     return result if isinstance(result, dict) else None
 
 
+async def _recover_stale_jobs():
+    """Reset any jobs left in 'running' state from a previous worker that was killed.
+
+    This handles the case where a deployment (SIGKILL after grace period) or
+    crash interrupted a job mid-execution.  The job is set back to 'pending' so
+    the normal poll loop picks it up.  TTS already has segment-level resume
+    support, so re-running is efficient.
+    """
+    async with get_session() as db:
+        result = await db.execute(
+            select(Job).where(Job.status == "running")
+        )
+        stale_jobs = result.scalars().all()
+
+        for job in stale_jobs:
+            logger.warning(
+                "Recovering stale job %s (step=%s, episode=%s) — resetting to pending",
+                job.id,
+                job.step,
+                job.episode_id,
+            )
+            job.status = "pending"
+            job.started_at = None
+
+            # Reset the episode status so the UI doesn't show a stale state
+            episode = await db.get(Episode, job.episode_id)
+            if episode and episode.status != "failed":
+                episode.status = EPISODE_STATUS_MAP.get(job.step, episode.status)
+
+        if stale_jobs:
+            logger.info("Recovered %d stale job(s)", len(stale_jobs))
+
+
 async def poll_loop():
     """Main loop: pick up pending jobs and process them."""
     logger.info("Worker started, polling every %ds", POLL_INTERVAL)
     await start_flush_loop()
 
     try:
+        await _recover_stale_jobs()
         await _poll_jobs()
     finally:
         await stop_flush_loop()

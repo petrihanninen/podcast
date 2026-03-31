@@ -104,8 +104,8 @@
     <div class="stat-card__label">API Cost</div>
     <div class="stat-card__value">${{ "%.4f"|format(totals.total_cost) }}</div>
     <div class="stat-card__sub">
-      {{ "{:,}"|format(totals.total_input_tokens) }} in /
-      {{ "{:,}"|format(totals.total_output_tokens) }} out tokens
+      {{ "{:,}".format(totals.total_input_tokens) }} in /
+      {{ "{:,}".format(totals.total_output_tokens) }} out tokens
     </div>
   </div>
   <div class="stat-card">
@@ -209,7 +209,7 @@
         </td>
         <td class="num mono">
           {% if ep.total_input_tokens %}
-            {{ "{:,}"|format(ep.total_input_tokens) }} / {{ "{:,}"|format(ep.total_output_tokens) }}
+            {{ "{:,}".format(ep.total_input_tokens) }} / {{ "{:,}".format(ep.total_output_tokens) }}
           {% else %}<span class="dim">—</span>{% endif %}
         </td>
         <td class="num mono">
