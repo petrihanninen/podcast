@@ -7,7 +7,8 @@ class Settings(BaseSettings):
     deepseek_api_key: str = ""
     audio_dir: str = "/data/audio"
     base_url: str = "http://localhost:8000"
-    api_password: str = ""
+    allowed_sub: str = ""
+    session_secret: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Signing in… — Podcast{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: var(--space-8);">
+  <p style="color: var(--color-text-muted);">Completing sign-in…</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // shoo.js handles the code exchange on this page automatically.
+  // After exchanging the code for an id_token, it redirects to the
+  // returnTo URL that was saved during startSignIn().
+  //
+  // As a fallback, if we're still here after a few seconds, redirect
+  // to the login page so the flow can continue.
+  setTimeout(() => {
+    const identity = window.Shoo?.getIdentity();
+    if (identity && identity.token) {
+      window.location.href = '/auth/login';
+    }
+  }, 3000);
+</script>
+{% endblock %}

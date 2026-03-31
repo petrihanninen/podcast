@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from podcast.config import settings
+from podcast.auth import require_auth_page
 from podcast.database import get_db
 from podcast.models import Episode, PodcastSettings
 from podcast.services.episode import create_episode, get_episode, list_episodes
@@ -141,40 +141,21 @@ async def index(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/episodes/new", response_class=HTMLResponse)
-async def new_episode_page(request: Request):
-    return templates.TemplateResponse(
-        "episode_new.html",
-        {"request": request, "password_required": bool(settings.api_password)},
-    )
+async def new_episode_page(request: Request, _user: str = Depends(require_auth_page)):
+    return templates.TemplateResponse("episode_new.html", {"request": request})
 
 
 @router.post("/episodes/new")
-async def new_episode_submit(request: Request, db: AsyncSession = Depends(get_db)):
+async def new_episode_submit(request: Request, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth_page)):
     form = await request.form()
     topic = form.get("topic", "").strip()
     title = form.get("title", "").strip() or None
-    password = form.get("password", "").strip()
-
-    if settings.api_password and password != settings.api_password:
-        return templates.TemplateResponse(
-            "episode_new.html",
-            {
-                "request": request,
-                "error": "Invalid password",
-                "password_required": True,
-            },
-        )
-
     if not topic:
         return templates.TemplateResponse(
             "episode_new.html",
-            {
-                "request": request,
-                "error": "Topic is required",
-                "password_required": bool(settings.api_password),
-            },
+            {"request": request, "error": "Topic is required"},
         )
-    episode = await create_episode(db, topic)
+    episode = await create_episode(db, topic, title)
     return RedirectResponse(url=f"/episodes/{episode.id}", status_code=303)
 
 
@@ -186,59 +167,30 @@ async def episode_detail(
     if not episode:
         return HTMLResponse("Not found", status_code=404)
     return templates.TemplateResponse(
-        "episode_detail.html",
-        {
-            "request": request,
-            "episode": episode,
-            "password_required": bool(settings.api_password),
-        },
+        "episode_detail.html", {"request": request, "episode": episode}
     )
 
 
 @router.get("/logs", response_class=HTMLResponse)
-async def logs_page(request: Request):
+async def logs_page(request: Request, _user: str = Depends(require_auth_page)):
     return templates.TemplateResponse("logs.html", {"request": request})
 
 
 @router.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request, db: AsyncSession = Depends(get_db)):
+async def settings_page(request: Request, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth_page)):
     s = await db.get(PodcastSettings, 1)
     if not s:
         s = PodcastSettings()
         db.add(s)
         await db.flush()
     return templates.TemplateResponse(
-        "settings.html",
-        {
-            "request": request,
-            "settings": s,
-            "password_required": bool(settings.api_password),
-        },
+        "settings.html", {"request": request, "settings": s}
     )
 
 
 @router.post("/settings")
-async def settings_submit(request: Request, db: AsyncSession = Depends(get_db)):
+async def settings_submit(request: Request, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth_page)):
     form = await request.form()
-
-    if settings.api_password:
-        password = form.get("password", "").strip()
-        if password != settings.api_password:
-            s = await db.get(PodcastSettings, 1)
-            if not s:
-                s = PodcastSettings()
-                db.add(s)
-                await db.flush()
-            return templates.TemplateResponse(
-                "settings.html",
-                {
-                    "request": request,
-                    "settings": s,
-                    "password_required": True,
-                    "error": "Invalid password",
-                },
-            )
-
     s = await db.get(PodcastSettings, 1)
     if not s:
         s = PodcastSettings()
@@ -258,7 +210,7 @@ def _calc_cost(input_tokens: int, output_tokens: int) -> float:
 
 
 @router.get("/metrics", response_class=HTMLResponse)
-async def metrics_page(request: Request, db: AsyncSession = Depends(get_db)):
+async def metrics_page(request: Request, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth_page)):
     result = await db.execute(
         select(Episode)
         .options(selectinload(Episode.jobs))
