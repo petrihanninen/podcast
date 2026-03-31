@@ -14,6 +14,42 @@ from podcast.models import Episode, PodcastSettings
 
 logger = logging.getLogger(__name__)
 
+
+def _write_progress(
+    segments_dir: str,
+    segments_completed: int,
+    total_segments: int,
+    audio_duration_seconds: float,
+):
+    """Write progress file to disk for the web layer to read."""
+    progress_path = os.path.join(segments_dir, "progress.json")
+    progress = {
+        "segments_completed": segments_completed,
+        "total_segments": total_segments,
+        "audio_duration_seconds": round(audio_duration_seconds, 1),
+    }
+    # Atomic write: write to temp file then rename to avoid partial reads
+    tmp_path = progress_path + ".tmp"
+    with open(tmp_path, "w") as f:
+        json.dump(progress, f)
+    os.replace(tmp_path, progress_path)
+
+
+def get_tts_progress(episode_id: uuid.UUID) -> dict | None:
+    """Read TTS progress from the progress file, if it exists.
+
+    Returns dict with keys: segments_completed, total_segments, audio_duration_seconds
+    or None if no progress file exists.
+    """
+    segments_dir = os.path.join(settings.audio_dir, "segments", str(episode_id))
+    progress_path = os.path.join(segments_dir, "progress.json")
+    try:
+        with open(progress_path) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
 # Module-level model cache — loaded once, kept in memory
 _model = None
 _sample_rate = None
@@ -60,6 +96,7 @@ def _synthesize_segments(
 
     segment_durations = []
     total_gen_start = time.monotonic()
+    cumulative_audio_seconds = 0.0
 
     # Generate each segment
     for i, segment in enumerate(segments):
@@ -69,6 +106,9 @@ def _synthesize_segments(
         if os.path.exists(segment_path):
             logger.info("Segment %d already exists, skipping", i)
             segment_durations.append(None)  # unknown for skipped
+            info = ta.info(segment_path)
+            cumulative_audio_seconds += info.num_frames / info.sample_rate
+            _write_progress(segments_dir, i + 1, len(segments), cumulative_audio_seconds)
             continue
 
         text = segment["text"]
@@ -94,6 +134,8 @@ def _synthesize_segments(
         segment_durations.append(round(seg_duration, 2))
 
         ta.save(segment_path, wav, sample_rate)
+        cumulative_audio_seconds += wav.shape[-1] / sample_rate
+        _write_progress(segments_dir, i + 1, len(segments), cumulative_audio_seconds)
         logger.info("Segment %d generated in %.1fs", i, seg_duration)
 
     total_gen_duration = time.monotonic() - total_gen_start
@@ -113,6 +155,11 @@ def _synthesize_segments(
     # Save concatenated WAV
     output_wav = os.path.join(settings.audio_dir, f"{episode_id}.wav")
     combined.export(output_wav, format="wav")
+
+    # Clean up progress file now that TTS is complete
+    progress_path = os.path.join(segments_dir, "progress.json")
+    if os.path.exists(progress_path):
+        os.remove(progress_path)
 
     audio_duration = len(combined) / 1000
     generated = [d for d in segment_durations if d is not None]
