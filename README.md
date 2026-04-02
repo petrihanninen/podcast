@@ -15,7 +15,7 @@ docker run -d --name podcast-db \
   -e POSTGRES_USER=podcast \
   -e POSTGRES_PASSWORD=podcast \
   -e POSTGRES_DB=podcast \
-  -p 5432:5432 \
+  -p 9002:5432 \
   postgres:16
 ```
 
@@ -28,25 +28,26 @@ docker build -t podcast .
 **3. Run the web server + worker:**
 
 ```bash
-# Web UI on port 8000
+# Web UI on port 9001
 docker run -d --name podcast-web \
-  -e DATABASE_URL=postgresql+asyncpg://podcast:podcast@host.docker.internal:5432/podcast \
-  -e ANTHROPIC_API_KEY=sk-ant-... \
-  -e BASE_URL=http://localhost:8000 \
+  -e DATABASE_URL=postgresql+asyncpg://podcast:podcast@host.docker.internal:9002/podcast \
+  -e BASE_URL=http://localhost:9001 \
   -v podcast-audio:/data/audio \
-  -p 8000:8000 \
+  -p 9001:9001 \
   podcast web
 
 # Background worker (generates the actual episodes)
 docker run -d --name podcast-worker \
-  -e DATABASE_URL=postgresql+asyncpg://podcast:podcast@host.docker.internal:5432/podcast \
+  -e DATABASE_URL=postgresql+asyncpg://podcast:podcast@host.docker.internal:9002/podcast \
   -e ANTHROPIC_API_KEY=sk-ant-... \
-  -e BASE_URL=http://localhost:8000 \
+  -e DEEPSEEK_API_KEY=sk-... \
+  -e HF_TOKEN=hf_... \
+  -e BASE_URL=http://localhost:9001 \
   -v podcast-audio:/data/audio \
   podcast worker
 ```
 
-Open [http://localhost:8000](http://localhost:8000) and create your first episode.
+Open [http://localhost:9001](http://localhost:9001) and create your first episode.
 
 ## Hosting
 
@@ -57,7 +58,7 @@ To host this properly, you basically need:
 - A persistent volume for `/data/audio`
 - `BASE_URL` set to your public URL so the RSS feed links work
 
-Set `BASE_URL` to whatever your public domain is, point a reverse proxy (nginx, Caddy, etc.) at port 8000, and you're good. The RSS feed lives at `/feed.xml` — add that to your podcast app of choice.
+Set `BASE_URL` to whatever your public domain is, point a reverse proxy (nginx, Caddy, etc.) at port 9001, and you're good. The RSS feed lives at `/feed.xml` — add that to your podcast app of choice.
 
 ## Tests
 
@@ -82,7 +83,10 @@ uv run pytest tests/test_routers_pages.py::TestFormatDuration
 
 | Variable | Description | Default |
 |---|---|---|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql+asyncpg://podcast:podcast@localhost:5432/podcast` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql+asyncpg://podcast:podcast@localhost:9002/podcast` |
 | `ANTHROPIC_API_KEY` | Your Anthropic API key | — |
+| `DEEPSEEK_API_KEY` | DeepSeek API key (used for transcript generation) | — |
+| `HF_TOKEN` | Hugging Face token (for downloading TTS models) | — |
 | `AUDIO_DIR` | Where episode audio files are stored | `/data/audio` |
-| `BASE_URL` | Public URL (used in RSS feed links) | `http://localhost:8000` |
+| `BASE_URL` | Public URL (used in RSS feed links) | `http://localhost:9001` |
+| `API_PASSWORD` | Optional password for mutating API endpoints | — |

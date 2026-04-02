@@ -73,7 +73,7 @@ class TestAppImport:
 
             with patch("podcast.config.settings") as mock_settings:
                 mock_settings.audio_dir = audio_dir
-                mock_settings.base_url = "http://localhost:8000"
+                mock_settings.base_url = "http://localhost:9001"
                 mock_settings.database_url = "postgresql+asyncpg://test:test@localhost/test"
 
                 # Force re-import by removing from cache

@@ -55,7 +55,7 @@ class TestGenerateFeed:
         db.execute = AsyncMock(return_value=mock_result)
 
         with patch("podcast.services.feed.settings") as mock_settings:
-            mock_settings.base_url = "http://localhost:8000"
+            mock_settings.base_url = "http://localhost:9001"
             xml = await generate_feed(db)
 
         assert "<?xml" in xml
@@ -109,7 +109,7 @@ class TestGenerateFeed:
         db.execute = AsyncMock(return_value=mock_result)
 
         with patch("podcast.services.feed.settings") as mock_settings:
-            mock_settings.base_url = "http://localhost:8000"
+            mock_settings.base_url = "http://localhost:9001"
             xml = await generate_feed(db)
 
         assert "Test Episode" in xml
@@ -137,7 +137,7 @@ class TestGenerateFeed:
         db.execute = AsyncMock(return_value=mock_result)
 
         with patch("podcast.services.feed.settings") as mock_settings:
-            mock_settings.base_url = "http://localhost:8000"
+            mock_settings.base_url = "http://localhost:9001"
             xml = await generate_feed(db)
 
         assert "Fallback topic" in xml

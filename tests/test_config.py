@@ -18,7 +18,7 @@ class TestSettings:
 
     def test_default_base_url(self):
         s = Settings()
-        assert s.base_url == "http://localhost:8000"
+        assert s.base_url == "http://localhost:9001"
 
     def test_default_anthropic_api_key_empty(self):
         s = Settings()

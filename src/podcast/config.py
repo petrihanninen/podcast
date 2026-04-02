@@ -2,11 +2,13 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://podcast:podcast@localhost:5432/podcast"
+    database_url: str = "postgresql+asyncpg://podcast:podcast@localhost:9002/podcast"
     anthropic_api_key: str = ""
     deepseek_api_key: str = ""
+    hf_token: str = ""
     audio_dir: str = "/data/audio"
-    base_url: str = "http://localhost:8000"
+    base_url: str = "http://localhost:9001"
+    api_password: str = ""
     allowed_sub: str = ""
     session_secret: str = ""
 
