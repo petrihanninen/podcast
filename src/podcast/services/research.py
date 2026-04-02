@@ -8,7 +8,7 @@ from podcast.models import Episode
 
 logger = logging.getLogger(__name__)
 
-RESEARCH_SYSTEM_PROMPT = """You are a podcast research assistant. Given a topic, produce comprehensive \
+RESEARCH_SYSTEM_PROMPT_TEMPLATE = """You are a podcast research assistant. Given a topic, produce comprehensive \
 research notes that will be used to write a podcast episode transcript.
 
 Your research should include:
@@ -20,7 +20,15 @@ Your research should include:
 - Relevant examples, case studies, or anecdotes
 
 Be thorough but organized. Use clear headings and bullet points. \
-The research should provide enough material for a 15-30 minute conversational podcast episode."""
+The research should provide enough material for a {duration_description} conversational podcast episode."""
+
+# Research config scaled by target episode length
+RESEARCH_LENGTH_CONFIG = {
+    15: {"duration_description": "10-15 minute", "max_tokens": 4096, "max_uses": 5},
+    30: {"duration_description": "25-30 minute", "max_tokens": 8192, "max_uses": 10},
+    60: {"duration_description": "55-60 minute", "max_tokens": 12000, "max_uses": 15},
+    120: {"duration_description": "2-hour", "max_tokens": 16000, "max_uses": 20},
+}
 
 
 async def run_research(episode_id: uuid.UUID) -> dict:
@@ -31,8 +39,14 @@ async def run_research(episode_id: uuid.UUID) -> dict:
         if not episode:
             raise ValueError(f"Episode {episode_id} not found")
         topic = episode.topic
+        target_length = episode.target_length_minutes
 
     logger.info("Researching topic for episode %s: %s", episode_id, topic[:100])
+
+    config = RESEARCH_LENGTH_CONFIG.get(target_length, RESEARCH_LENGTH_CONFIG[30])
+    system_prompt = RESEARCH_SYSTEM_PROMPT_TEMPLATE.format(
+        duration_description=config["duration_description"],
+    )
 
     client = get_client()
     model = 'claude-sonnet-4-20250514'
@@ -40,9 +54,9 @@ async def run_research(episode_id: uuid.UUID) -> dict:
     t0 = time.monotonic()
     response = await client.messages.create(
         model=model,
-        max_tokens=8192,
-        system=RESEARCH_SYSTEM_PROMPT,
-        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 10}],
+        max_tokens=config["max_tokens"],
+        system=system_prompt,
+        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": config["max_uses"]}],
         messages=[
             {
                 "role": "user",

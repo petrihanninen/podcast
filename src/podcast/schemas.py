@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -14,6 +15,7 @@ class EpisodeCreate(BaseModel):
     topic: str
     title: str | None = None
     description: str | None = None
+    target_length_minutes: Literal[15, 30, 60, 120] = 30
 
 
 class JobResponse(BaseModel):
@@ -34,6 +36,7 @@ class EpisodeResponse(BaseModel):
     title: str
     description: str | None
     topic: str
+    target_length_minutes: int
     status: str
     error_message: str | None
     failed_step: str | None
@@ -56,6 +59,7 @@ class EpisodeListItem(BaseModel):
     id: uuid.UUID
     title: str
     topic: str
+    target_length_minutes: int
     status: str
     episode_number: int | None
     audio_duration_seconds: int | None

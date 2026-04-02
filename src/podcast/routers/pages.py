@@ -173,12 +173,21 @@ async def new_episode_submit(request: Request, db: AsyncSession = Depends(get_db
     form = await request.form()
     topic = form.get("topic", "").strip()
     title = form.get("title", "").strip() or None
+
+    # Parse and validate target length
+    try:
+        target_length = int(form.get("target_length_minutes", "30"))
+    except (TypeError, ValueError):
+        target_length = 30
+    if target_length not in (15, 30, 60, 120):
+        target_length = 30
+
     if not topic:
         return templates.TemplateResponse(
             "episode_new.html",
             {"request": request, "error": "Topic is required"},
         )
-    episode = await create_episode(db, topic, title)
+    episode = await create_episode(db, topic, title, target_length_minutes=target_length)
     return RedirectResponse(url=f"/episodes/{episode.id}", status_code=303)
 
 

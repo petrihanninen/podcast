@@ -29,6 +29,7 @@ class Episode(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     topic: Mapped[str] = mapped_column(Text, nullable=False)
+    target_length_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
 
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
     error_message: Mapped[str | None] = mapped_column(Text)
