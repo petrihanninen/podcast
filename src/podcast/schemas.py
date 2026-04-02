@@ -80,6 +80,8 @@ class SettingsUpdate(BaseModel):
     host_a_name: str | None = None
     host_b_name: str | None = None
     transcript_tone_notes: list[str] | None = None
+    voice_ref_a_path: str | None = None
+    voice_ref_b_path: str | None = None
 
 
 class SettingsResponse(BaseModel):
@@ -91,6 +93,8 @@ class SettingsResponse(BaseModel):
     host_a_name: str
     host_b_name: str
     transcript_tone_notes: list[str] = None  # type: ignore[assignment]
+    voice_ref_a_path: str | None
+    voice_ref_b_path: str | None
 
     model_config = {"from_attributes": True}
 
