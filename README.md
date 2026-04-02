@@ -64,19 +64,19 @@ Set `BASE_URL` to whatever your public domain is, point a reverse proxy (nginx, 
 
 ```bash
 # Install test dependencies
-uv sync --extra test
+pip install -e ".[test]"
 
 # Run all tests
-uv run pytest
+pytest
 
 # Run with verbose output
-uv run pytest -v
+pytest -v
 
 # Run a specific test file
-uv run pytest tests/test_services_transcript.py
+pytest tests/test_services_transcript.py
 
 # Run a specific test class or method
-uv run pytest tests/test_routers_pages.py::TestFormatDuration
+pytest tests/test_routers_pages.py::TestFormatDuration
 ```
 
 ## Environment variables
