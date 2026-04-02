@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: podcast
+      POSTGRES_PASSWORD: podcast
+      POSTGRES_DB: podcast
+    ports:
+      - "9002:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U podcast"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build: .
+    command: web
+    ports:
+      - "9001:9001"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://podcast:podcast@db:5432/podcast
+      BASE_URL: http://localhost:9001
+    volumes:
+      - audio:/data/audio
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: worker
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://podcast:podcast@db:5432/podcast
+      BASE_URL: http://localhost:9001
+    volumes:
+      - audio:/data/audio
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  audio:

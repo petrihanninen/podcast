@@ -6,45 +6,11 @@ Default host voices are samples from [LibriVox](https://librivox.org/) public do
 
 ## Running locally
 
-You need Docker, a PostgreSQL database, and an [Anthropic API key](https://console.anthropic.com/).
-
-**1. Start Postgres** (or use an existing one):
+You need Docker and an [Anthropic API key](https://console.anthropic.com/).
 
 ```bash
-docker run -d --name podcast-db \
-  -e POSTGRES_USER=podcast \
-  -e POSTGRES_PASSWORD=podcast \
-  -e POSTGRES_DB=podcast \
-  -p 9002:5432 \
-  postgres:16
-```
-
-**2. Build the image:**
-
-```bash
-docker build -t podcast .
-```
-
-**3. Run the web server + worker:**
-
-```bash
-# Web UI on port 9001
-docker run -d --name podcast-web \
-  -e DATABASE_URL=postgresql+asyncpg://podcast:podcast@host.docker.internal:9002/podcast \
-  -e BASE_URL=http://localhost:9001 \
-  -v podcast-audio:/data/audio \
-  -p 9001:9001 \
-  podcast web
-
-# Background worker (generates the actual episodes)
-docker run -d --name podcast-worker \
-  -e DATABASE_URL=postgresql+asyncpg://podcast:podcast@host.docker.internal:9002/podcast \
-  -e ANTHROPIC_API_KEY=sk-ant-... \
-  -e DEEPSEEK_API_KEY=sk-... \
-  -e HF_TOKEN=hf_... \
-  -e BASE_URL=http://localhost:9001 \
-  -v podcast-audio:/data/audio \
-  podcast worker
+cp .env.example .env   # then fill in your API keys
+docker compose up
 ```
 
 Open [http://localhost:9001](http://localhost:9001) and create your first episode.
