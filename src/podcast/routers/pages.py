@@ -210,13 +210,26 @@ async def logs_page(request: Request, _user: str = Depends(require_auth_page)):
 
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth_page)):
+    from podcast.services.transcript import DEFAULT_TONE_NOTES
+
     s = await db.get(PodcastSettings, 1)
     if not s:
         s = PodcastSettings()
         db.add(s)
         await db.flush()
+
+    # Parse stored tone notes (JSON string → list), fall back to defaults
+    tone_notes = list(DEFAULT_TONE_NOTES)
+    if s.transcript_tone_notes:
+        try:
+            parsed = json.loads(s.transcript_tone_notes)
+            if isinstance(parsed, list):
+                tone_notes = parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     return templates.TemplateResponse(
-        "settings.html", {"request": request, "settings": s}
+        "settings.html", {"request": request, "settings": s, "tone_notes": tone_notes}
     )
 
 

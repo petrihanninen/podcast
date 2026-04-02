@@ -1,6 +1,29 @@
 {% extends "base.html" %}
 {% block title %}Settings — Podcast{% endblock %}
 
+{% block head %}
+<style>
+  .tabs { display: flex; gap: var(--space-1); border-bottom: 1px solid var(--color-border-subtle); margin-block-end: var(--space-6); }
+  .tabs__btn { background: none; border: none; border-bottom: 2px solid transparent; padding: var(--space-2) var(--space-4); font: inherit; font-size: var(--text-caption); font-weight: 500; color: var(--color-text-secondary); cursor: pointer; transition: color var(--transition-fast), border-color var(--transition-fast); }
+  .tabs__btn:hover { color: var(--color-text); }
+  .tabs__btn--active { color: var(--color-text); border-bottom-color: var(--color-accent); }
+  .tab-panel { display: none; }
+  .tab-panel--active { display: block; }
+
+  .tone-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+  .tone-item { display: flex; align-items: center; gap: var(--space-3); background: var(--color-bg-subtle); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); }
+  .tone-item__text { flex: 1; font-size: var(--text-caption); color: var(--color-text); }
+  .tone-item__remove { flex-shrink: 0; background: none; border: none; color: var(--color-text-muted); font-size: var(--text-body); cursor: pointer; padding: var(--space-1); line-height: 1; border-radius: var(--radius-sm); transition: color var(--transition-fast), background var(--transition-fast); }
+  .tone-item__remove:hover { color: var(--color-error); background: var(--color-error-subtle); }
+  .tone-add { display: flex; gap: var(--space-2); margin-block-start: var(--space-3); }
+  .tone-add .input { flex: 1; }
+  .tone-hint { font-size: var(--text-overline); color: var(--color-text-muted); margin-block-start: var(--space-2); }
+  .tone-actions { margin-block-start: var(--space-5); display: flex; align-items: center; gap: var(--space-3); }
+  .tone-saved { font-size: var(--text-caption); color: var(--color-success); opacity: 0; transition: opacity var(--transition-fast); }
+  .tone-saved.show { opacity: 1; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <h1>Settings</h1>
@@ -10,61 +33,201 @@
 <div class="error-box" style="margin-block-end: var(--space-4);">{{ error }}</div>
 {% endif %}
 
-<form method="post" action="/settings" class="stack">
-  <div class="form-group">
-    <label for="title">Podcast Title</label>
-    <input type="text" id="title" name="title" class="input" value="{{ settings.title }}">
-  </div>
+<div class="tabs" role="tablist">
+  <button class="tabs__btn tabs__btn--active" role="tab" aria-selected="true" data-tab="general">General</button>
+  <button class="tabs__btn" role="tab" aria-selected="false" data-tab="transcript">Transcript</button>
+</div>
 
-  <div class="form-group">
-    <label for="description">Description</label>
-    <textarea id="description" name="description" class="textarea" rows="3">{{ settings.description }}</textarea>
-  </div>
+<!-- General Tab -->
+<div id="tab-general" class="tab-panel tab-panel--active" role="tabpanel">
+  <form method="post" action="/settings" class="stack">
+    <div class="form-group">
+      <label for="title">Podcast Title</label>
+      <input type="text" id="title" name="title" class="input" value="{{ settings.title }}">
+    </div>
 
-  <div class="form-group">
-    <label for="author">Author</label>
-    <input type="text" id="author" name="author" class="input" value="{{ settings.author }}">
-  </div>
+    <div class="form-group">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" class="textarea" rows="3">{{ settings.description }}</textarea>
+    </div>
 
-  <div class="form-group">
-    <label for="language">Language</label>
-    <input type="text" id="language" name="language" class="input" value="{{ settings.language }}" placeholder="en">
-  </div>
+    <div class="form-group">
+      <label for="author">Author</label>
+      <input type="text" id="author" name="author" class="input" value="{{ settings.author }}">
+    </div>
+
+    <div class="form-group">
+      <label for="language">Language</label>
+      <input type="text" id="language" name="language" class="input" value="{{ settings.language }}" placeholder="en">
+    </div>
+
+    <hr class="divider">
+
+    <div class="grid grid--2">
+      <div class="form-group">
+        <label for="host_a_name">Host A Name</label>
+        <input type="text" id="host_a_name" name="host_a_name" class="input" value="{{ settings.host_a_name }}">
+      </div>
+      <div class="form-group">
+        <label for="host_b_name">Host B Name</label>
+        <input type="text" id="host_b_name" name="host_b_name" class="input" value="{{ settings.host_b_name }}">
+      </div>
+    </div>
+
+    {% if password_required %}
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" class="input" placeholder="Required to save settings" required>
+    </div>
+    {% endif %}
+
+    <div>
+      <button type="submit" class="btn btn--primary">Save Settings</button>
+    </div>
+  </form>
 
   <hr class="divider">
 
-  <div class="grid grid--2">
-    <div class="form-group">
-      <label for="host_a_name">Host A Name</label>
-      <input type="text" id="host_a_name" name="host_a_name" class="input" value="{{ settings.host_a_name }}">
-    </div>
-    <div class="form-group">
-      <label for="host_b_name">Host B Name</label>
-      <input type="text" id="host_b_name" name="host_b_name" class="input" value="{{ settings.host_b_name }}">
-    </div>
+  <div class="card">
+    <p class="card__title">RSS Feed</p>
+    <p class="card__body">
+      Subscribe to your podcast feed at:
+      <code style="background: var(--color-bg-subtle); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-size: var(--text-caption);">
+        {{ request.url_for('feed') }}
+      </code>
+    </p>
   </div>
-
-  {% if password_required %}
-  <div class="form-group">
-    <label for="password">Password</label>
-    <input type="password" id="password" name="password" class="input" placeholder="Required to save settings" required>
-  </div>
-  {% endif %}
-
-  <div>
-    <button type="submit" class="btn btn--primary">Save Settings</button>
-  </div>
-</form>
-
-<hr class="divider">
-
-<div class="card">
-  <p class="card__title">RSS Feed</p>
-  <p class="card__body">
-    Subscribe to your podcast feed at:
-    <code style="background: var(--color-bg-subtle); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-size: var(--text-caption);">
-      {{ request.url_for('feed') }}
-    </code>
-  </p>
 </div>
+
+<!-- Transcript Tab -->
+<div id="tab-transcript" class="tab-panel" role="tabpanel">
+  <p style="color: var(--color-text-secondary); font-size: var(--text-caption); margin-block-end: var(--space-5);">
+    These notes are included in the system prompt when generating transcripts. They control the tone and style of the conversation. Technical requirements and host roles are fixed.
+  </p>
+
+  <ul class="tone-list" id="tone-list">
+    {% for note in tone_notes %}
+    <li class="tone-item">
+      <span class="tone-item__text">{{ note }}</span>
+      <button type="button" class="tone-item__remove" aria-label="Remove">&times;</button>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <div class="tone-add">
+    <input type="text" id="tone-input" class="input" placeholder="Add a new guideline...">
+    <button type="button" id="tone-add-btn" class="btn btn--secondary">Add</button>
+  </div>
+  <p class="tone-hint">Press Enter or click Add to append a new guideline.</p>
+
+  <div class="tone-actions">
+    <button type="button" id="tone-save-btn" class="btn btn--primary">Save</button>
+    <span class="tone-saved" id="tone-saved">Saved</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  /* ---- Tab switching ---- */
+  var tabs = document.querySelectorAll('.tabs__btn');
+  var panels = document.querySelectorAll('.tab-panel');
+
+  function activateTab(name) {
+    tabs.forEach(function(btn) {
+      var active = btn.getAttribute('data-tab') === name;
+      btn.classList.toggle('tabs__btn--active', active);
+      btn.setAttribute('aria-selected', active);
+    });
+    panels.forEach(function(panel) {
+      panel.classList.toggle('tab-panel--active', panel.id === 'tab-' + name);
+    });
+    history.replaceState(null, '', '#' + name);
+  }
+
+  tabs.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      activateTab(btn.getAttribute('data-tab'));
+    });
+  });
+
+  // Restore tab from URL hash
+  var hash = location.hash.replace('#', '');
+  if (hash === 'transcript') activateTab('transcript');
+
+  /* ---- Tone note list management ---- */
+  var list = document.getElementById('tone-list');
+  var input = document.getElementById('tone-input');
+  var addBtn = document.getElementById('tone-add-btn');
+  var saveBtn = document.getElementById('tone-save-btn');
+  var savedMsg = document.getElementById('tone-saved');
+
+  function createItem(text) {
+    var li = document.createElement('li');
+    li.className = 'tone-item';
+    var span = document.createElement('span');
+    span.className = 'tone-item__text';
+    span.textContent = text;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tone-item__remove';
+    btn.setAttribute('aria-label', 'Remove');
+    btn.innerHTML = '&times;';
+    btn.addEventListener('click', function() { li.remove(); });
+    li.appendChild(span);
+    li.appendChild(btn);
+    return li;
+  }
+
+  function addNote() {
+    var text = input.value.trim();
+    if (!text) return;
+    list.appendChild(createItem(text));
+    input.value = '';
+    input.focus();
+  }
+
+  addBtn.addEventListener('click', addNote);
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); addNote(); }
+  });
+
+  // Wire up remove buttons rendered server-side
+  list.querySelectorAll('.tone-item__remove').forEach(function(btn) {
+    btn.addEventListener('click', function() { btn.closest('.tone-item').remove(); });
+  });
+
+  /* ---- Save via API ---- */
+  saveBtn.addEventListener('click', function() {
+    var notes = [];
+    list.querySelectorAll('.tone-item__text').forEach(function(span) {
+      var t = span.textContent.trim();
+      if (t) notes.push(t);
+    });
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+
+    fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript_tone_notes: notes }),
+    })
+    .then(function(res) {
+      if (!res.ok) throw new Error('Save failed');
+      savedMsg.classList.add('show');
+      clearTimeout(savedMsg._tid);
+      savedMsg._tid = setTimeout(function() { savedMsg.classList.remove('show'); }, 2000);
+    })
+    .catch(function(err) {
+      alert('Failed to save: ' + err.message);
+    })
+    .finally(function() {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save';
+    });
+  });
+})();
+</script>
 {% endblock %}

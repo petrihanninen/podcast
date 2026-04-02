@@ -113,6 +113,7 @@ class PodcastSettings(Base):
     )
     voice_ref_a_path: Mapped[str | None] = mapped_column(String(500))
     voice_ref_b_path: Mapped[str | None] = mapped_column(String(500))
+    transcript_tone_notes: Mapped[str | None] = mapped_column(Text)  # JSON array of strings
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow
