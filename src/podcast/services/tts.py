@@ -59,6 +59,9 @@ def _get_model():
     global _model, _sample_rate
     if _model is None:
         logger.info("Loading Chatterbox TTS model (this may take a moment)...")
+        import perth
+        perth.PerthImplicitWatermarker = perth.DummyWatermarker
+
         from chatterbox.tts import ChatterboxTTS
 
         _model = ChatterboxTTS.from_pretrained(device="cpu")
