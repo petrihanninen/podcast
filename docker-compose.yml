@@ -24,6 +24,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://podcast:podcast@db:5432/podcast
       BASE_URL: http://localhost:9001
+      PORT: 9001
     volumes:
       - audio:/data/audio
     depends_on:

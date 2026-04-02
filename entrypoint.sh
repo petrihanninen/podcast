@@ -8,7 +8,7 @@ python -m alembic upgrade head
 case "$1" in
   web)
     echo "Starting web server..."
-    exec uvicorn podcast.main:app --host 0.0.0.0 --port 9001
+    exec uvicorn podcast.main:app --host 0.0.0.0 --port "${PORT:-8000}"
     ;;
   worker)
     echo "Starting worker..."
