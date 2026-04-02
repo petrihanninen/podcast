@@ -23,6 +23,15 @@ TRANSCRIPT_LENGTH_CONFIG = {
     120: {"word_target": 16000, "duration": "110-120", "notes_truncation": 40000, "max_tokens": 32768},
 }
 
+DEFAULT_TONE_NOTES: list[str] = [
+    "Make it feel like a real conversation between two knowledgeable friends",
+    'Include natural interjections ("Right!", "That\'s fascinating", "Wait, really?")',
+    "Add humor where appropriate — a witty aside or funny observation",
+    "Build a clear narrative arc: hook → context → deep dive → implications → takeaway",
+    "Each segment should be 1-4 sentences (natural speaking length)",
+    "Make sure the listener learns something genuinely interesting and useful",
+]
+
 TRANSCRIPT_SYSTEM_PROMPT = """You are a podcast script writer. You write engaging, natural-sounding \
 conversational transcripts between two podcast hosts.
 
@@ -31,18 +40,29 @@ Your output MUST be a JSON array of dialogue segments. Each segment is an object
 - "text": what they say (natural speech, not written prose)
 
 Guidelines for the conversation:
-- Make it feel like a real conversation between two knowledgeable friends
-- {host_a} tends to introduce topics and provide structure
-- {host_b} asks great questions, plays devil's advocate, and adds surprising perspectives
-- Include natural interjections ("Right!", "That's fascinating", "Wait, really?")
-- Add humor where appropriate — a witty aside or funny observation
-- Build a clear narrative arc: hook → context → deep dive → implications → takeaway
-- Target {word_target} words total (roughly {duration} minutes at speaking pace)
-- Each segment should be 1-4 sentences (natural speaking length)
+- {{host_a}} tends to introduce topics and provide structure
+- {{host_b}} asks great questions, plays devil's advocate, and adds surprising perspectives
+{tone_notes}\
+- Target {{word_target}} words total (roughly {{duration}} minutes at speaking pace)
 - Don't use stage directions or descriptions — only spoken dialogue
-- Make sure the listener learns something genuinely interesting and useful
 
 Output ONLY the JSON array, no other text."""
+
+
+def _build_system_prompt(
+    host_a: str,
+    host_b: str,
+    word_target: int,
+    duration: str,
+    tone_notes: list[str] | None = None,
+) -> str:
+    """Assemble the transcript system prompt with customisable tone notes."""
+    notes = tone_notes if tone_notes is not None else DEFAULT_TONE_NOTES
+    tone_lines = "".join(f"- {note}\n" for note in notes)
+    template = TRANSCRIPT_SYSTEM_PROMPT.format(tone_notes=tone_lines)
+    return template.format(
+        host_a=host_a, host_b=host_b, word_target=word_target, duration=duration
+    )
 
 
 def _repair_json(text: str) -> str:
@@ -91,14 +111,28 @@ async def generate_transcript(episode_id: uuid.UUID) -> dict:
         research_notes = episode.research_notes
         target_length = episode.target_length_minutes
 
+        # Load custom tone notes (JSON string → list), fall back to defaults
+        tone_notes = None
+        if podcast_settings and podcast_settings.transcript_tone_notes:
+            try:
+                parsed = json.loads(podcast_settings.transcript_tone_notes)
+                if isinstance(parsed, list):
+                    tone_notes = parsed
+            except (json.JSONDecodeError, TypeError):
+                pass
+
     logger.info("Generating transcript for episode %s via DeepSeek", episode_id)
 
     config = TRANSCRIPT_LENGTH_CONFIG.get(target_length, TRANSCRIPT_LENGTH_CONFIG[30])
     word_target = config["word_target"]
     duration = config["duration"]
 
-    system = TRANSCRIPT_SYSTEM_PROMPT.format(
-        host_a=host_a, host_b=host_b, word_target=word_target, duration=duration
+    system = _build_system_prompt(
+        host_a=host_a,
+        host_b=host_b,
+        word_target=word_target,
+        duration=duration,
+        tone_notes=tone_notes,
     )
 
     # Truncate research notes based on target length

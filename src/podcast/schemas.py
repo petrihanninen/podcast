@@ -1,8 +1,9 @@
+import json
 import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class TtsProgress(BaseModel):
@@ -78,6 +79,7 @@ class SettingsUpdate(BaseModel):
     image_url: str | None = None
     host_a_name: str | None = None
     host_b_name: str | None = None
+    transcript_tone_notes: list[str] | None = None
 
 
 class SettingsResponse(BaseModel):
@@ -88,8 +90,24 @@ class SettingsResponse(BaseModel):
     image_url: str | None
     host_a_name: str
     host_b_name: str
+    transcript_tone_notes: list[str] = None  # type: ignore[assignment]
 
     model_config = {"from_attributes": True}
+
+    @field_validator("transcript_tone_notes", mode="before")
+    @classmethod
+    def _parse_tone_notes(cls, v: str | list | None) -> list[str]:
+        from podcast.services.transcript import DEFAULT_TONE_NOTES
+
+        if v is None:
+            return list(DEFAULT_TONE_NOTES)
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else list(DEFAULT_TONE_NOTES)
+            except (json.JSONDecodeError, TypeError):
+                return list(DEFAULT_TONE_NOTES)
+        return v
 
 
 class LogEntryResponse(BaseModel):

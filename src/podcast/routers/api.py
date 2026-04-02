@@ -155,6 +155,9 @@ async def update_settings(data: SettingsUpdate, db: AsyncSession = Depends(get_d
 
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
+        # Serialise list fields to JSON for the Text column
+        if key == "transcript_tone_notes" and isinstance(value, list):
+            value = json.dumps(value)
         setattr(s, key, value)
 
     return s
