@@ -40,7 +40,7 @@
 
 <!-- General Tab -->
 <div id="tab-general" class="tab-panel tab-panel--active" role="tabpanel">
-  <form method="post" action="/settings" class="stack">
+  <form method="post" action="/settings" enctype="multipart/form-data" class="stack">
     <div class="form-group">
       <label for="title">Podcast Title</label>
       <input type="text" id="title" name="title" class="input" value="{{ settings.title }}">
@@ -71,6 +71,41 @@
       <div class="form-group">
         <label for="host_b_name">Host B Name</label>
         <input type="text" id="host_b_name" name="host_b_name" class="input" value="{{ settings.host_b_name }}">
+      </div>
+    </div>
+
+    <div class="grid grid--2">
+      <div class="form-group">
+        <label for="voice_ref_a">Host A Voice Sample (.wav)</label>
+        {% if settings.voice_ref_a_path %}
+        <p style="font-size: var(--text-caption); color: var(--color-success); margin-block-end: var(--space-1);">
+          &#10003; Uploaded
+        </p>
+        <label style="font-size: var(--text-caption); color: var(--color-text-muted);">
+          <input type="checkbox" name="remove_voice_ref_a" value="1"> Remove voice sample
+        </label>
+        {% else %}
+        <p style="font-size: var(--text-caption); color: var(--color-text-muted); margin-block-end: var(--space-1);">
+          No voice sample uploaded
+        </p>
+        {% endif %}
+        <input type="file" id="voice_ref_a" name="voice_ref_a" accept=".wav,audio/wav" class="input">
+      </div>
+      <div class="form-group">
+        <label for="voice_ref_b">Host B Voice Sample (.wav)</label>
+        {% if settings.voice_ref_b_path %}
+        <p style="font-size: var(--text-caption); color: var(--color-success); margin-block-end: var(--space-1);">
+          &#10003; Uploaded
+        </p>
+        <label style="font-size: var(--text-caption); color: var(--color-text-muted);">
+          <input type="checkbox" name="remove_voice_ref_b" value="1"> Remove voice sample
+        </label>
+        {% else %}
+        <p style="font-size: var(--text-caption); color: var(--color-text-muted); margin-block-end: var(--space-1);">
+          No voice sample uploaded
+        </p>
+        {% endif %}
+        <input type="file" id="voice_ref_b" name="voice_ref_b" accept=".wav,audio/wav" class="input">
       </div>
     </div>
 

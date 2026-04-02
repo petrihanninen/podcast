@@ -1,4 +1,5 @@
 import json
+import os
 import uuid
 
 from fastapi import APIRouter, Depends, Request
@@ -9,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from podcast.auth import require_auth_page
+from podcast.config import settings as app_settings
 from podcast.database import get_db
 from podcast.models import Episode, PodcastSettings
 from podcast.services.episode import create_episode, get_episode, list_episodes
@@ -233,6 +235,37 @@ async def settings_page(request: Request, db: AsyncSession = Depends(get_db), _u
     )
 
 
+_ALLOWED_VOICE_EXTENSIONS = {".wav"}
+_MAX_VOICE_REF_SIZE = 50 * 1024 * 1024  # 50 MB
+
+
+async def _process_voice_upload(
+    upload, voice_refs_dir: str, filename: str
+) -> tuple[str | None, str | None]:
+    """Process a voice sample upload.
+
+    Returns ``(saved_path, error_message)``.  Both are ``None`` when
+    no file was provided.
+    """
+    if not upload or not hasattr(upload, "filename") or not upload.filename:
+        return None, None
+
+    _, ext = os.path.splitext(upload.filename)
+    if ext.lower() not in _ALLOWED_VOICE_EXTENSIONS:
+        return None, f"Voice sample must be a .wav file (got {ext})"
+
+    content = await upload.read()
+    if len(content) > _MAX_VOICE_REF_SIZE:
+        return None, "Voice sample file too large (max 50 MB)"
+
+    os.makedirs(voice_refs_dir, exist_ok=True)
+    save_path = os.path.join(voice_refs_dir, filename)
+    with open(save_path, "wb") as f:
+        f.write(content)
+
+    return save_path, None
+
+
 @router.post("/settings")
 async def settings_submit(request: Request, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth_page)):
     form = await request.form()
@@ -246,6 +279,34 @@ async def settings_submit(request: Request, db: AsyncSession = Depends(get_db), 
         value = form.get(field, "").strip()
         if value:
             setattr(s, field, value)
+
+    # Process voice sample uploads
+    voice_refs_dir = os.path.join(app_settings.audio_dir, "voice_refs")
+
+    for host_key, db_field, filename in [
+        ("voice_ref_a", "voice_ref_a_path", "host_a.wav"),
+        ("voice_ref_b", "voice_ref_b_path", "host_b.wav"),
+    ]:
+        # Handle removal
+        if form.get(f"remove_{host_key}"):
+            saved_path = getattr(s, db_field)
+            if saved_path and os.path.exists(saved_path):
+                os.remove(saved_path)
+            setattr(s, db_field, None)
+            continue
+
+        # Handle upload
+        upload = form.get(host_key)
+        saved_path, error = await _process_voice_upload(
+            upload, voice_refs_dir, filename
+        )
+        if error:
+            return templates.TemplateResponse(
+                "settings.html",
+                {"request": request, "settings": s, "error": error},
+            )
+        if saved_path:
+            setattr(s, db_field, saved_path)
 
     return RedirectResponse(url="/settings", status_code=303)
 

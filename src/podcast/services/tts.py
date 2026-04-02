@@ -71,17 +71,33 @@ def _get_model():
 
 
 def _get_voice_ref_path(host: str, host_a_name: str, voice_ref_a: str | None, voice_ref_b: str | None) -> str | None:
-    """Get the voice reference path for a host."""
+    """Get the voice reference path for a host.
+
+    Resolution order:
+    1. Custom path from DB (voice_ref_a / voice_ref_b)
+    2. Persistent volume default ({audio_dir}/voice_refs/host_*.wav)
+    3. Bundled default (voice_refs/host_*.wav)
+    """
     if host == host_a_name:
         if voice_ref_a and os.path.exists(voice_ref_a):
             return voice_ref_a
-        default = "voice_refs/host_a.wav"
-        return default if os.path.exists(default) else None
+        for default in [
+            os.path.join(settings.audio_dir, "voice_refs", "host_a.wav"),
+            "voice_refs/host_a.wav",
+        ]:
+            if os.path.exists(default):
+                return default
+        return None
     else:
         if voice_ref_b and os.path.exists(voice_ref_b):
             return voice_ref_b
-        default = "voice_refs/host_b.wav"
-        return default if os.path.exists(default) else None
+        for default in [
+            os.path.join(settings.audio_dir, "voice_refs", "host_b.wav"),
+            "voice_refs/host_b.wav",
+        ]:
+            if os.path.exists(default):
+                return default
+        return None
 
 
 def _synthesize_segments(

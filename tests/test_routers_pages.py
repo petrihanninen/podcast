@@ -1,5 +1,6 @@
 """Tests for podcast.routers.pages helper functions."""
 
+import os
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock
 
@@ -13,6 +14,7 @@ from podcast.routers.pages import (
     _format_duration,
     _format_file_size,
     _get_current_step_index,
+    _process_voice_upload,
     _status_badge,
     _status_label,
 )
@@ -231,3 +233,58 @@ class TestPipelineSteps:
     def test_all_steps_have_labels(self):
         for step in PIPELINE_STEPS:
             assert step in STEP_LABELS
+
+
+class TestProcessVoiceUpload:
+    async def test_no_upload_returns_none(self):
+        path, error = await _process_voice_upload(None, "/tmp/refs", "host_a.wav")
+        assert path is None
+        assert error is None
+
+    async def test_empty_filename_returns_none(self):
+        upload = MagicMock()
+        upload.filename = ""
+        path, error = await _process_voice_upload(upload, "/tmp/refs", "host_a.wav")
+        assert path is None
+        assert error is None
+
+    async def test_invalid_extension_returns_error(self):
+        upload = MagicMock()
+        upload.filename = "voice.mp3"
+        path, error = await _process_voice_upload(upload, "/tmp/refs", "host_a.wav")
+        assert path is None
+        assert error is not None
+        assert ".wav" in error
+
+    async def test_oversized_file_returns_error(self):
+        upload = MagicMock()
+        upload.filename = "voice.wav"
+        oversized = b"\x00" * (51 * 1024 * 1024)
+
+        async def mock_read():
+            return oversized
+
+        upload.read = mock_read
+        path, error = await _process_voice_upload(upload, "/tmp/refs", "host_a.wav")
+        assert path is None
+        assert error is not None
+        assert "too large" in error
+
+    async def test_valid_upload_saves_file(self, tmp_path):
+        upload = MagicMock()
+        upload.filename = "my_voice.wav"
+        content = b"RIFF fake wav content"
+
+        async def mock_read():
+            return content
+
+        upload.read = mock_read
+
+        voice_dir = str(tmp_path / "voice_refs")
+        path, error = await _process_voice_upload(upload, voice_dir, "host_a.wav")
+
+        assert error is None
+        assert path == os.path.join(voice_dir, "host_a.wav")
+        assert os.path.exists(path)
+        with open(path, "rb") as f:
+            assert f.read() == content

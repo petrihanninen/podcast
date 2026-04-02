@@ -179,6 +179,8 @@ class TestSettingsResponse:
             image_url = None
             host_a_name = "Alex"
             host_b_name = "Sam"
+            voice_ref_a_path = None
+            voice_ref_b_path = None
 
         resp = SettingsResponse.model_validate(FakeSettings(), from_attributes=True)
         assert resp.title == "My Podcast"

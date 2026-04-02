@@ -22,49 +22,90 @@ class TestGetVoiceRefPath:
             result = _get_voice_ref_path("Sam", "Alex", "/custom/a.wav", "/custom/b.wav")
         assert result == "/custom/b.wav"
 
-    def test_host_a_custom_ref_not_exists_fallback(self):
-        """When custom ref doesn't exist, fall back to default."""
+    def test_host_a_custom_ref_not_exists_fallback_persistent(self):
+        """When custom ref doesn't exist, fall back to persistent volume default."""
         def exists_side_effect(path):
             if path == "/custom/a.wav":
+                return False
+            if path == "/data/audio/voice_refs/host_a.wav":
+                return True
+            return False
+
+        with patch("podcast.services.tts.os.path.exists", side_effect=exists_side_effect):
+            with patch("podcast.services.tts.settings") as mock_settings:
+                mock_settings.audio_dir = "/data/audio"
+                result = _get_voice_ref_path("Alex", "Alex", "/custom/a.wav", None)
+        assert result == "/data/audio/voice_refs/host_a.wav"
+
+    def test_host_b_custom_ref_not_exists_fallback_persistent(self):
+        """When custom ref doesn't exist, fall back to persistent volume default."""
+        def exists_side_effect(path):
+            if path == "/custom/b.wav":
+                return False
+            if path == "/data/audio/voice_refs/host_b.wav":
+                return True
+            return False
+
+        with patch("podcast.services.tts.os.path.exists", side_effect=exists_side_effect):
+            with patch("podcast.services.tts.settings") as mock_settings:
+                mock_settings.audio_dir = "/data/audio"
+                result = _get_voice_ref_path("Sam", "Alex", None, "/custom/b.wav")
+        assert result == "/data/audio/voice_refs/host_b.wav"
+
+    def test_host_a_fallback_to_bundled_default(self):
+        """When persistent volume default doesn't exist, fall back to bundled default."""
+        def exists_side_effect(path):
+            if path == "/data/audio/voice_refs/host_a.wav":
                 return False
             if path == "voice_refs/host_a.wav":
                 return True
             return False
 
         with patch("podcast.services.tts.os.path.exists", side_effect=exists_side_effect):
-            result = _get_voice_ref_path("Alex", "Alex", "/custom/a.wav", None)
+            with patch("podcast.services.tts.settings") as mock_settings:
+                mock_settings.audio_dir = "/data/audio"
+                result = _get_voice_ref_path("Alex", "Alex", None, None)
         assert result == "voice_refs/host_a.wav"
 
-    def test_host_b_custom_ref_not_exists_fallback(self):
+    def test_host_b_fallback_to_bundled_default(self):
+        """When persistent volume default doesn't exist, fall back to bundled default."""
         def exists_side_effect(path):
-            if path == "/custom/b.wav":
+            if path == "/data/audio/voice_refs/host_b.wav":
                 return False
             if path == "voice_refs/host_b.wav":
                 return True
             return False
 
         with patch("podcast.services.tts.os.path.exists", side_effect=exists_side_effect):
-            result = _get_voice_ref_path("Sam", "Alex", None, "/custom/b.wav")
+            with patch("podcast.services.tts.settings") as mock_settings:
+                mock_settings.audio_dir = "/data/audio"
+                result = _get_voice_ref_path("Sam", "Alex", None, None)
         assert result == "voice_refs/host_b.wav"
 
     def test_host_a_no_ref_no_default(self):
         with patch("podcast.services.tts.os.path.exists", return_value=False):
-            result = _get_voice_ref_path("Alex", "Alex", None, None)
+            with patch("podcast.services.tts.settings") as mock_settings:
+                mock_settings.audio_dir = "/data/audio"
+                result = _get_voice_ref_path("Alex", "Alex", None, None)
         assert result is None
 
     def test_host_b_no_ref_no_default(self):
         with patch("podcast.services.tts.os.path.exists", return_value=False):
-            result = _get_voice_ref_path("Sam", "Alex", None, None)
+            with patch("podcast.services.tts.settings") as mock_settings:
+                mock_settings.audio_dir = "/data/audio"
+                result = _get_voice_ref_path("Sam", "Alex", None, None)
         assert result is None
 
-    def test_host_a_none_ref_uses_default(self):
-        """When voice_ref_a is None, should try the default path."""
+    def test_host_a_none_ref_uses_persistent_default(self):
+        """When voice_ref_a is None, should try the persistent volume path first."""
         def exists_side_effect(path):
-            return path == "voice_refs/host_a.wav"
+            return path == "/data/audio/voice_refs/host_a.wav"
 
         with patch("podcast.services.tts.os.path.exists", side_effect=exists_side_effect):
-            result = _get_voice_ref_path("Alex", "Alex", None, None)
-        assert result == "voice_refs/host_a.wav"
+            with patch("podcast.services.tts.settings") as mock_settings:
+                mock_settings.audio_dir = "/data/audio"
+                result = _get_voice_ref_path("Alex", "Alex", None, None)
+        assert result == "/data/audio/voice_refs/host_a.wav"
 
 
 class TestSynthesizeSpeech:
