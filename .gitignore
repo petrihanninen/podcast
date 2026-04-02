@@ -8,3 +8,4 @@ build/
 *.mp3
 *.wav
 .venv/
+uv.lock
