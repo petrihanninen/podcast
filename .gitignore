@@ -7,4 +7,5 @@ build/
 .env
 *.mp3
 *.wav
+!voice_refs/*.wav
 .venv/

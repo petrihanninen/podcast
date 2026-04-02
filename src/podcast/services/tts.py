@@ -74,14 +74,24 @@ def _get_voice_ref_path(host: str, host_a_name: str, voice_ref_a: str | None, vo
     """Get the voice reference path for a host."""
     if host == host_a_name:
         if voice_ref_a and os.path.exists(voice_ref_a):
+            logger.debug("Using DB voice ref for host A: %s", voice_ref_a)
             return voice_ref_a
-        default = "voice_refs/host_a.wav"
-        return default if os.path.exists(default) else None
+        default = os.path.join(settings.voice_refs_dir, "host_a.wav")
+        if os.path.exists(default):
+            logger.debug("Using default voice ref for host A: %s", default)
+            return default
+        logger.warning("No voice ref found for host A (%s), tried: db=%s, default=%s", host, voice_ref_a, default)
+        return None
     else:
         if voice_ref_b and os.path.exists(voice_ref_b):
+            logger.debug("Using DB voice ref for host B: %s", voice_ref_b)
             return voice_ref_b
-        default = "voice_refs/host_b.wav"
-        return default if os.path.exists(default) else None
+        default = os.path.join(settings.voice_refs_dir, "host_b.wav")
+        if os.path.exists(default):
+            logger.debug("Using default voice ref for host B: %s", default)
+            return default
+        logger.warning("No voice ref found for host B (%s), tried: db=%s, default=%s", host, voice_ref_b, default)
+        return None
 
 
 def _synthesize_segments(
