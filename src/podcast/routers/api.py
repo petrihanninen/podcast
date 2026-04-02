@@ -48,7 +48,7 @@ async def health():
 
 @router.post("/episodes", response_model=EpisodeResponse)
 async def create_episode_endpoint(data: EpisodeCreate, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
-    episode = await create_episode(db, data.topic, data.title, data.description)
+    episode = await create_episode(db, data.topic, data.title, data.description, data.target_length_minutes)
     return episode
 
 

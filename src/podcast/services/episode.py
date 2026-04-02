@@ -33,13 +33,23 @@ async def generate_title_from_topic(topic: str) -> str:
 
 
 async def create_episode(
-    db: AsyncSession, topic: str, title: str | None = None, description: str | None = None
+    db: AsyncSession,
+    topic: str,
+    title: str | None = None,
+    description: str | None = None,
+    target_length_minutes: int = 30,
 ) -> Episode:
     """Create a new episode and enqueue the first pipeline job."""
     if not title:
         title = await generate_title_from_topic(topic)
 
-    episode = Episode(title=title, topic=topic, description=description, status="pending")
+    episode = Episode(
+        title=title,
+        topic=topic,
+        description=description,
+        target_length_minutes=target_length_minutes,
+        status="pending",
+    )
     db.add(episode)
     await db.flush()
 

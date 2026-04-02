@@ -1,6 +1,33 @@
 {% extends "base.html" %}
 {% block title %}New Episode — Podcast{% endblock %}
 
+{% block head %}
+<style>
+  .length-options {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-block-start: var(--space-2);
+  }
+  .radio-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .radio-card:has(input:checked) {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  }
+  .radio-card input { accent-color: var(--color-accent); }
+  .radio-card__label { font-size: var(--text-caption); font-weight: 500; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <h1>New Episode</h1>
@@ -14,6 +41,28 @@
   <div class="form-group">
     <label for="topic">Topic</label>
     <textarea id="topic" name="topic" class="textarea" rows="6" placeholder="What do you want to learn about? Describe the topic, angle, or specific questions you want explored..." required></textarea>
+  </div>
+
+  <div class="form-group">
+    <label>Episode Length</label>
+    <div class="length-options">
+      <label class="radio-card">
+        <input type="radio" name="target_length_minutes" value="15">
+        <span class="radio-card__label">15 min</span>
+      </label>
+      <label class="radio-card">
+        <input type="radio" name="target_length_minutes" value="30" checked>
+        <span class="radio-card__label">30 min</span>
+      </label>
+      <label class="radio-card">
+        <input type="radio" name="target_length_minutes" value="60">
+        <span class="radio-card__label">60 min</span>
+      </label>
+      <label class="radio-card">
+        <input type="radio" name="target_length_minutes" value="120">
+        <span class="radio-card__label">2 hours</span>
+      </label>
+    </div>
   </div>
 
   {% if password_required %}

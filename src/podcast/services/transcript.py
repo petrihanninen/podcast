@@ -15,6 +15,14 @@ logger = logging.getLogger(__name__)
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_MODEL = "deepseek-chat"
 
+# Transcript config scaled by target episode length
+TRANSCRIPT_LENGTH_CONFIG = {
+    15: {"word_target": 2000, "duration": "12-15", "notes_truncation": 8000, "max_tokens": 8192},
+    30: {"word_target": 4000, "duration": "25-30", "notes_truncation": 12000, "max_tokens": 8192},
+    60: {"word_target": 8000, "duration": "55-60", "notes_truncation": 24000, "max_tokens": 16384},
+    120: {"word_target": 16000, "duration": "110-120", "notes_truncation": 40000, "max_tokens": 32768},
+}
+
 TRANSCRIPT_SYSTEM_PROMPT = """You are a podcast script writer. You write engaging, natural-sounding \
 conversational transcripts between two podcast hosts.
 
@@ -81,21 +89,23 @@ async def generate_transcript(episode_id: uuid.UUID) -> dict:
         host_b = podcast_settings.host_b_name if podcast_settings else "Sam"
         topic = episode.topic
         research_notes = episode.research_notes
+        target_length = episode.target_length_minutes
 
     logger.info("Generating transcript for episode %s via DeepSeek", episode_id)
 
-    # Target 4000 words for ~20 min episode
-    word_target = 4000
-    duration = "15-20"
+    config = TRANSCRIPT_LENGTH_CONFIG.get(target_length, TRANSCRIPT_LENGTH_CONFIG[30])
+    word_target = config["word_target"]
+    duration = config["duration"]
 
     system = TRANSCRIPT_SYSTEM_PROMPT.format(
         host_a=host_a, host_b=host_b, word_target=word_target, duration=duration
     )
 
-    # Truncate research notes to ~12k chars (~3k tokens) to stay within rate limits
+    # Truncate research notes based on target length
     notes = research_notes or "No research notes available."
-    if len(notes) > 12000:
-        notes = notes[:12000] + "\n\n[...truncated]"
+    notes_truncation = config["notes_truncation"]
+    if len(notes) > notes_truncation:
+        notes = notes[:notes_truncation] + "\n\n[...truncated]"
 
     user_message = f"""Write a podcast episode transcript about the following topic.
 
@@ -127,7 +137,7 @@ The two hosts are {host_a} and {host_b}. Remember to output ONLY the JSON array.
                 {"role": "system", "content": system},
                 {"role": "user", "content": user_message},
             ],
-            "max_tokens": 8192,
+            "max_tokens": config["max_tokens"],
             "temperature": 1.0,
             "stream": False,
         }
