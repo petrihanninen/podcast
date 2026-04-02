@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     deepseek_api_key: str = ""
     hf_token: str = ""
     audio_dir: str = "/data/audio"
+    voice_refs_dir: str = "/app/voice_refs"
     base_url: str = "http://localhost:9001"
     api_password: str = ""
     allowed_sub: str = ""

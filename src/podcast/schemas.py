@@ -79,6 +79,8 @@ class SettingsUpdate(BaseModel):
     image_url: str | None = None
     host_a_name: str | None = None
     host_b_name: str | None = None
+    voice_ref_a_path: str | None = None
+    voice_ref_b_path: str | None = None
     transcript_tone_notes: list[str] | None = None
 
 
@@ -90,6 +92,8 @@ class SettingsResponse(BaseModel):
     image_url: str | None
     host_a_name: str
     host_b_name: str
+    voice_ref_a_path: str | None
+    voice_ref_b_path: str | None
     transcript_tone_notes: list[str] = None  # type: ignore[assignment]
 
     model_config = {"from_attributes": True}
