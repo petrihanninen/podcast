@@ -3,8 +3,14 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://podcast:podcast@localhost:9002/podcast"
+
+    # LLM provider API keys
     anthropic_api_key: str = ""
     deepseek_api_key: str = ""
+    google_api_key: str = ""
+    openai_api_key: str = ""
+    perplexity_api_key: str = ""
+
     hf_token: str = ""
     audio_dir: str = "/data/audio"
     voice_refs_dir: str = "/app/voice_refs"

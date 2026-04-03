@@ -4,16 +4,12 @@ import re
 import time
 import uuid
 
-import httpx
-
-from podcast.config import settings
 from podcast.database import get_session
 from podcast.models import Episode, PodcastSettings
+from podcast.services.claude_client import get_client
+from podcast.services.llm_providers import complete, get_transcript_model
 
 logger = logging.getLogger(__name__)
-
-DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEEPSEEK_MODEL = "deepseek-chat"
 
 # Transcript config scaled by target episode length
 TRANSCRIPT_LENGTH_CONFIG = {
@@ -97,7 +93,7 @@ def _parse_json_with_repair(text: str) -> list:
 
 
 async def generate_transcript(episode_id: uuid.UUID) -> dict:
-    """Generate a two-host conversational transcript using DeepSeek API. Returns metrics dict."""
+    """Generate a two-host conversational transcript using the configured LLM. Returns metrics dict."""
     # Read episode data and settings
     async with get_session() as db:
         episode = await db.get(Episode, episode_id)
@@ -110,6 +106,7 @@ async def generate_transcript(episode_id: uuid.UUID) -> dict:
         topic = episode.topic
         research_notes = episode.research_notes
         target_length = episode.target_length_minutes
+        model_key = episode.transcript_model
 
         # Load custom tone notes (JSON string → list), fall back to defaults
         tone_notes = None
@@ -121,7 +118,13 @@ async def generate_transcript(episode_id: uuid.UUID) -> dict:
             except (json.JSONDecodeError, TypeError):
                 pass
 
-    logger.info("Generating transcript for episode %s via DeepSeek", episode_id)
+    model_info = get_transcript_model(model_key)
+    logger.info(
+        "Generating transcript for episode %s via %s (%s)",
+        episode_id,
+        model_info.display_name,
+        model_info.model_id,
+    )
 
     config = TRANSCRIPT_LENGTH_CONFIG.get(target_length, TRANSCRIPT_LENGTH_CONFIG[30])
     word_target = config["word_target"]
@@ -150,95 +153,21 @@ Research notes:
 
 The two hosts are {host_a} and {host_b}. Remember to output ONLY the JSON array."""
 
-    api_key = settings.deepseek_api_key
-    if not api_key:
-        raise RuntimeError("DEEPSEEK_API_KEY is not configured")
-
     t0 = time.monotonic()
-
-    # Call DeepSeek chat completions API (OpenAI-compatible format)
-    async with httpx.AsyncClient(
-        base_url=DEEPSEEK_BASE_URL,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        timeout=httpx.Timeout(300.0, connect=30.0),
-    ) as client:
-        payload = {
-            "model": DEEPSEEK_MODEL,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user_message},
-            ],
-            "max_tokens": config["max_tokens"],
-            "temperature": 1.0,
-            "stream": False,
-        }
-
-        # Retry with exponential backoff (similar to previous Anthropic client behaviour)
-        last_error = None
-        for attempt in range(5):
-            try:
-                response = await client.post("/chat/completions", json=payload)
-                response.raise_for_status()
-                break
-            except httpx.HTTPStatusError as exc:
-                last_error = exc
-                if exc.response.status_code == 429:
-                    # Rate limited — back off
-                    wait = min(2 ** attempt * 2, 60)
-                    logger.warning(
-                        "DeepSeek rate limited (attempt %d/5), retrying in %ds",
-                        attempt + 1,
-                        wait,
-                    )
-                    import asyncio
-                    await asyncio.sleep(wait)
-                elif exc.response.status_code >= 500:
-                    wait = min(2 ** attempt * 2, 60)
-                    logger.warning(
-                        "DeepSeek server error %d (attempt %d/5), retrying in %ds",
-                        exc.response.status_code,
-                        attempt + 1,
-                        wait,
-                    )
-                    import asyncio
-                    await asyncio.sleep(wait)
-                else:
-                    raise
-            except httpx.TimeoutException as exc:
-                last_error = exc
-                wait = min(2 ** attempt * 2, 60)
-                logger.warning(
-                    "DeepSeek request timed out (attempt %d/5), retrying in %ds",
-                    attempt + 1,
-                    wait,
-                )
-                import asyncio
-                await asyncio.sleep(wait)
-        else:
-            raise RuntimeError(
-                f"DeepSeek API failed after 5 attempts: {last_error}"
-            ) from last_error
-
+    response = await complete(
+        model_info,
+        system=system,
+        user_message=user_message,
+        max_tokens=config["max_tokens"],
+        temperature=1.0,
+    )
     api_duration = time.monotonic() - t0
-    data = response.json()
 
-    # Extract text from OpenAI-compatible response
-    transcript_text = data["choices"][0]["message"]["content"]
-
-    # Parse usage stats
-    usage = data.get("usage", {})
-    input_tokens = usage.get("prompt_tokens", 0)
-    output_tokens = usage.get("completion_tokens", 0)
-
-    # Validate it's valid JSON
-    transcript_text = transcript_text.strip()
+    # Parse the transcript JSON
+    transcript_text = response.text.strip()
     # Handle markdown code blocks if model wraps it
     if transcript_text.startswith("```"):
         lines = transcript_text.split("\n")
-        # Remove first and last lines (``` markers)
         lines = [l for l in lines if not l.strip().startswith("```")]
         transcript_text = "\n".join(lines)
 
@@ -258,12 +187,17 @@ The two hosts are {host_a} and {host_b}. Remember to output ONLY the JSON array.
 
     # Generate a refined title based on the actual transcript content
     try:
+        client = get_client()
         title_response = await client.messages.create(
             model="claude-haiku-4-20250414",
             max_tokens=100,
             messages=[{
                 "role": "user",
-                "content": f"Based on this podcast transcript, generate a short, catchy episode title (max 8 words). Output ONLY the title, no quotes.\n\nTopic: {topic}\n\nTranscript excerpt:\n{transcript_text[:3000]}",
+                "content": (
+                    "Based on this podcast transcript, generate a short, catchy episode "
+                    "title (max 8 words). Output ONLY the title, no quotes.\n\n"
+                    f"Topic: {topic}\n\nTranscript excerpt:\n{transcript_text[:3000]}"
+                ),
             }],
         )
         new_title = title_response.content[0].text.strip().strip('"\'')
@@ -277,9 +211,10 @@ The two hosts are {host_a} and {host_b}. Remember to output ONLY the JSON array.
 
     word_count = sum(len(seg["text"].split()) for seg in segments)
     metrics = {
-        "model": DEEPSEEK_MODEL,
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
+        "model": response.model,
+        "provider": model_info.provider,
+        "input_tokens": response.input_tokens,
+        "output_tokens": response.output_tokens,
         "duration_seconds": round(api_duration, 2),
         "segment_count": len(segments),
         "word_count": word_count,

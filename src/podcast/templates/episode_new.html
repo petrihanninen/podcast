@@ -25,6 +25,41 @@
   }
   .radio-card input { accent-color: var(--color-accent); }
   .radio-card__label { font-size: var(--text-caption); font-weight: 500; }
+
+  .model-selects {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
+  @media (max-width: 600px) {
+    .model-selects { grid-template-columns: 1fr; }
+  }
+  .model-select select {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+    font-size: var(--text-body);
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23888' d='M1.4 0L6 4.6 10.6 0 12 1.4l-6 6-6-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+  .model-select label {
+    display: block;
+    margin-block-end: var(--space-1);
+    font-weight: 600;
+    font-size: var(--text-caption);
+  }
+  .model-hint {
+    font-size: var(--text-overline);
+    color: var(--color-text-muted);
+    margin-block-start: 4px;
+  }
 </style>
 {% endblock %}
 
@@ -62,6 +97,30 @@
         <input type="radio" name="target_length_minutes" value="120">
         <span class="radio-card__label">2 hours</span>
       </label>
+    </div>
+  </div>
+
+  <div class="model-selects">
+    <div class="model-select">
+      <label for="research_model">Research model</label>
+      <select id="research_model" name="research_model">
+        {% for key, model in research_models.items() %}
+        <option value="{{ key }}" {% if key == default_research_model %}selected{% endif %}>
+          {{ model.display_name }}{% if model.supports_web_search %} ✦{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+      <p class="model-hint">✦ = includes web search</p>
+    </div>
+    <div class="model-select">
+      <label for="transcript_model">Transcript model</label>
+      <select id="transcript_model" name="transcript_model">
+        {% for key, model in transcript_models.items() %}
+        <option value="{{ key }}" {% if key == default_transcript_model %}selected{% endif %}>
+          {{ model.display_name }}
+        </option>
+        {% endfor %}
+      </select>
     </div>
   </div>
 

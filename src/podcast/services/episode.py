@@ -38,6 +38,8 @@ async def create_episode(
     title: str | None = None,
     description: str | None = None,
     target_length_minutes: int = 30,
+    research_model: str | None = None,
+    transcript_model: str | None = None,
 ) -> Episode:
     """Create a new episode and enqueue the first pipeline job."""
     if not title:
@@ -49,6 +51,8 @@ async def create_episode(
         description=description,
         target_length_minutes=target_length_minutes,
         status="pending",
+        research_model=research_model,
+        transcript_model=transcript_model,
     )
     db.add(episode)
     await db.flush()

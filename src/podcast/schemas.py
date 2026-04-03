@@ -17,6 +17,8 @@ class EpisodeCreate(BaseModel):
     title: str | None = None
     description: str | None = None
     target_length_minutes: Literal[15, 30, 60, 120] = 30
+    research_model: str | None = None      # Registry key, e.g. "claude-sonnet"
+    transcript_model: str | None = None    # Registry key, e.g. "deepseek"
 
 
 class JobResponse(BaseModel):
@@ -41,6 +43,8 @@ class EpisodeResponse(BaseModel):
     status: str
     error_message: str | None
     failed_step: str | None
+    research_model: str | None
+    transcript_model: str | None
     research_notes: str | None
     transcript: str | None
     audio_filename: str | None

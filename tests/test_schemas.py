@@ -91,9 +91,12 @@ class TestEpisodeResponse:
             title="Test",
             description=None,
             topic="Topic",
+            target_length_minutes=30,
             status="ready",
             error_message=None,
             failed_step=None,
+            research_model="claude-sonnet",
+            transcript_model="deepseek",
             research_notes="notes",
             transcript='[{"speaker":"A","text":"hi"}]',
             audio_filename="test.mp3",
@@ -108,6 +111,8 @@ class TestEpisodeResponse:
         assert data.id == ep_id
         assert data.status == "ready"
         assert data.audio_filename == "test.mp3"
+        assert data.research_model == "claude-sonnet"
+        assert data.transcript_model == "deepseek"
 
     def test_default_jobs_empty_list(self):
         now = datetime.now(timezone.utc)
@@ -116,9 +121,12 @@ class TestEpisodeResponse:
             title="Test",
             description=None,
             topic="Topic",
+            target_length_minutes=30,
             status="pending",
             error_message=None,
             failed_step=None,
+            research_model=None,
+            transcript_model=None,
             research_notes=None,
             transcript=None,
             audio_filename=None,
@@ -139,6 +147,7 @@ class TestEpisodeListItem:
             id=uuid.uuid4(),
             title="Test",
             topic="Topic",
+            target_length_minutes=30,
             status="pending",
             episode_number=None,
             audio_duration_seconds=None,
@@ -179,6 +188,9 @@ class TestSettingsResponse:
             image_url = None
             host_a_name = "Alex"
             host_b_name = "Sam"
+            voice_ref_a_path = None
+            voice_ref_b_path = None
+            transcript_tone_notes = None
 
         resp = SettingsResponse.model_validate(FakeSettings(), from_attributes=True)
         assert resp.title == "My Podcast"

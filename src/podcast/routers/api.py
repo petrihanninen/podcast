@@ -27,14 +27,14 @@ from podcast.services.episode import (
     list_episodes,
     retry_episode,
 )
+from podcast.services.llm_providers import (
+    RESEARCH_MODELS,
+    TRANSCRIPT_MODELS,
+    get_all_model_pricing,
+)
 
-# Pricing per million tokens by model
-MODEL_PRICING = {
-    # Claude Sonnet 4 (used for research step)
-    "claude-sonnet-4-20250514": {"input": 3.0, "output": 15.0},
-    # DeepSeek-Chat V3.2 (used for transcript step)
-    "deepseek-chat": {"input": 0.28, "output": 0.42},
-}
+# Build pricing table dynamically from the provider registry
+MODEL_PRICING = get_all_model_pricing()
 # Fallback pricing if model not recognised (Claude Sonnet 4 rates)
 DEFAULT_PRICING = {"input": 3.0, "output": 15.0}
 
@@ -46,9 +46,32 @@ async def health():
     return {"status": "ok"}
 
 
+@router.get("/models")
+async def get_models():
+    """Return available models for research and transcript steps."""
+    return {
+        "research": {
+            key: {"display_name": m.display_name, "provider": m.provider, "supports_web_search": m.supports_web_search}
+            for key, m in RESEARCH_MODELS.items()
+        },
+        "transcript": {
+            key: {"display_name": m.display_name, "provider": m.provider}
+            for key, m in TRANSCRIPT_MODELS.items()
+        },
+    }
+
+
 @router.post("/episodes", response_model=EpisodeResponse)
 async def create_episode_endpoint(data: EpisodeCreate, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
-    episode = await create_episode(db, data.topic, data.title, data.description, data.target_length_minutes)
+    episode = await create_episode(
+        db,
+        data.topic,
+        data.title,
+        data.description,
+        target_length_minutes=data.target_length_minutes,
+        research_model=data.research_model,
+        transcript_model=data.transcript_model,
+    )
     return episode
 
 

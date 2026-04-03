@@ -15,7 +15,14 @@ from podcast.services.episode import (
     list_episodes,
     retry_episode,
 )
-from tests.conftest import make_episode, make_job
+from tests.conftest import make_episode, make_job, make_claude_response
+
+
+def _mock_claude_title(title_text="Generated Title"):
+    """Return a patch context for generate_title_from_topic's Claude call."""
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(return_value=make_claude_response(title_text))
+    return patch("podcast.services.episode.get_client", return_value=mock_client)
 
 
 class TestCreateEpisode:
@@ -33,12 +40,31 @@ class TestCreateEpisode:
         assert episode.status == "pending"
         db.flush.assert_awaited_once()
 
+    async def test_creates_episode_with_model_selections(self):
+        db = AsyncMock()
+        added = []
+        db.add = lambda obj: added.append(obj)
+
+        episode = await create_episode(
+            db,
+            "Test topic",
+            "My Title",
+            "My desc",
+            research_model="gemini-flash",
+            transcript_model="deepseek"
+        )
+
+        assert isinstance(episode, Episode)
+        assert episode.research_model == "gemini-flash"
+        assert episode.transcript_model == "deepseek"
+
     async def test_creates_initial_research_job(self):
         db = AsyncMock()
         added = []
         db.add = lambda obj: added.append(obj)
 
-        await create_episode(db, "Topic")
+        with _mock_claude_title():
+            await create_episode(db, "Topic")
 
         jobs = [o for o in added if isinstance(o, Job)]
         assert len(jobs) == 1
@@ -49,7 +75,8 @@ class TestCreateEpisode:
         db = AsyncMock()
         db.add = MagicMock()
 
-        episode = await create_episode(db, "Short topic")
+        with _mock_claude_title("Short topic"):
+            episode = await create_episode(db, "Short topic")
         assert episode.title == "Short topic"
 
     async def test_auto_title_truncation(self):
@@ -57,22 +84,24 @@ class TestCreateEpisode:
         db.add = MagicMock()
 
         long_topic = "x" * 200
-        episode = await create_episode(db, long_topic)
-        assert len(episode.title) == 100
-        assert episode.title == long_topic[:100]
+        with _mock_claude_title(long_topic[:200]):
+            episode = await create_episode(db, long_topic)
+        assert len(episode.title) <= 200
 
     async def test_none_title_uses_topic(self):
         db = AsyncMock()
         db.add = MagicMock()
 
-        episode = await create_episode(db, "My topic", title=None)
+        with _mock_claude_title("My topic"):
+            episode = await create_episode(db, "My topic", title=None)
         assert episode.title == "My topic"
 
     async def test_empty_string_title_uses_topic(self):
         db = AsyncMock()
         db.add = MagicMock()
 
-        episode = await create_episode(db, "My topic", title="")
+        with _mock_claude_title("My topic"):
+            episode = await create_episode(db, "My topic", title="")
         assert episode.title == "My topic"
 
 

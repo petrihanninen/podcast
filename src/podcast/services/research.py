@@ -3,8 +3,8 @@ import time
 import uuid
 
 from podcast.database import get_session
-from podcast.services.claude_client import get_client
 from podcast.models import Episode
+from podcast.services.llm_providers import complete, get_research_model
 
 logger = logging.getLogger(__name__)
 
@@ -24,73 +24,69 @@ The research should provide enough material for a {duration_description} convers
 
 # Research config scaled by target episode length
 RESEARCH_LENGTH_CONFIG = {
-    15: {"duration_description": "10-15 minute", "max_tokens": 4096, "max_uses": 5},
-    30: {"duration_description": "25-30 minute", "max_tokens": 8192, "max_uses": 10},
-    60: {"duration_description": "55-60 minute", "max_tokens": 12000, "max_uses": 15},
-    120: {"duration_description": "2-hour", "max_tokens": 16000, "max_uses": 20},
+    15: {"duration_description": "10-15 minute", "max_tokens": 4096},
+    30: {"duration_description": "25-30 minute", "max_tokens": 8192},
+    60: {"duration_description": "55-60 minute", "max_tokens": 12000},
+    120: {"duration_description": "2-hour", "max_tokens": 16000},
 }
 
 
 async def run_research(episode_id: uuid.UUID) -> dict:
-    """Research a topic using Claude API with web search. Returns metrics dict."""
+    """Research a topic using the configured LLM provider. Returns metrics dict."""
     # Read episode data
     async with get_session() as db:
         episode = await db.get(Episode, episode_id)
         if not episode:
             raise ValueError(f"Episode {episode_id} not found")
         topic = episode.topic
+        model_key = episode.research_model
         target_length = episode.target_length_minutes
 
-    logger.info("Researching topic for episode %s: %s", episode_id, topic[:100])
+    model_info = get_research_model(model_key)
 
     config = RESEARCH_LENGTH_CONFIG.get(target_length, RESEARCH_LENGTH_CONFIG[30])
     system_prompt = RESEARCH_SYSTEM_PROMPT_TEMPLATE.format(
         duration_description=config["duration_description"],
     )
 
-    client = get_client()
-    model = 'claude-sonnet-4-20250514'
+    logger.info(
+        "Researching topic for episode %s via %s (%s): %s",
+        episode_id,
+        model_info.display_name,
+        model_info.model_id,
+        topic[:100],
+    )
 
     t0 = time.monotonic()
-    response = await client.messages.create(
-        model=model,
-        max_tokens=config["max_tokens"],
+    response = await complete(
+        model_info,
         system=system_prompt,
-        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": config["max_uses"]}],
-        messages=[
-            {
-                "role": "user",
-                "content": f"Research the following topic thoroughly:\n\n{topic}",
-            }
-        ],
+        user_message=f"Research the following topic thoroughly:\n\n{topic}",
+        max_tokens=config["max_tokens"],
+        use_web_search=True,
     )
     duration = time.monotonic() - t0
 
-    # Extract text from response
-    research_text = ""
-    for block in response.content:
-        if block.type == "text":
-            research_text += block.text
-
-    if not research_text:
+    if not response.text:
         raise RuntimeError("No research content generated")
 
     # Save results
     async with get_session() as db:
         episode = await db.get(Episode, episode_id)
-        episode.research_notes = research_text
+        episode.research_notes = response.text
 
     metrics = {
-        "model": model,
-        "input_tokens": response.usage.input_tokens,
-        "output_tokens": response.usage.output_tokens,
+        "model": response.model,
+        "provider": model_info.provider,
+        "input_tokens": response.input_tokens,
+        "output_tokens": response.output_tokens,
         "duration_seconds": round(duration, 2),
-        "output_chars": len(research_text),
+        "output_chars": len(response.text),
     }
     logger.info(
         "Research complete for episode %s (%d chars, %d in/%d out tokens, %.1fs)",
         episode_id,
-        len(research_text),
+        len(response.text),
         metrics["input_tokens"],
         metrics["output_tokens"],
         duration,

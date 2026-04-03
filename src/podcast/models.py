@@ -35,6 +35,10 @@ class Episode(Base):
     error_message: Mapped[str | None] = mapped_column(Text)
     failed_step: Mapped[str | None] = mapped_column(String(50))
 
+    # LLM model selections (registry keys, e.g. "claude-sonnet", "deepseek")
+    research_model: Mapped[str | None] = mapped_column(String(100))
+    transcript_model: Mapped[str | None] = mapped_column(String(100))
+
     research_notes: Mapped[str | None] = mapped_column(Text)
     transcript: Mapped[str | None] = mapped_column(Text)  # JSON array of segments
 
