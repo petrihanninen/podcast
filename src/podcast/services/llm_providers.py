@@ -121,6 +121,7 @@ async def _complete_openai_compatible(
     user_message: str,
     max_tokens: int,
     temperature: float,
+    web_search_options: dict | None = None,
 ) -> LLMResponse:
     """Generic OpenAI chat-completions client with retry."""
     async with httpx.AsyncClient(
@@ -141,6 +142,8 @@ async def _complete_openai_compatible(
             "temperature": temperature,
             "stream": False,
         }
+        if web_search_options is not None:
+            payload["web_search_options"] = web_search_options
 
         last_error: Exception | None = None
         for attempt in range(5):
@@ -211,6 +214,7 @@ async def _complete_google(
     user_message: str,
     max_tokens: int,
     temperature: float,
+    use_web_search: bool = False,
 ) -> LLMResponse:
     api_key = settings.google_api_key
     if not api_key:
@@ -227,6 +231,8 @@ async def _complete_google(
             "temperature": temperature,
         },
     }
+    if use_web_search:
+        payload["tools"] = [{"google_search": {}}]
 
     async with httpx.AsyncClient(
         headers={
@@ -333,7 +339,7 @@ RESEARCH_MODELS: dict[str, ModelInfo] = {
         provider="google",
         model_id="gemini-2.5-flash",
         display_name="Gemini 3 Flash",
-        supports_web_search=False,
+        supports_web_search=True,
         pricing={"input": 0.50, "output": 3.0},
     ),
     "perplexity-deep-research": ModelInfo(
@@ -347,9 +353,9 @@ RESEARCH_MODELS: dict[str, ModelInfo] = {
     "gpt-mini": ModelInfo(
         id="gpt-mini",
         provider="openai",
-        model_id="gpt-4o-mini",
-        display_name="GPT 5.4-mini",
-        supports_web_search=False,
+        model_id="gpt-4o-mini-search-preview",
+        display_name="GPT 4o-mini Search",
+        supports_web_search=True,
         pricing={"input": 0.15, "output": 0.60},
     ),
 }
@@ -448,9 +454,11 @@ async def complete(
     Universal completion — routes to the correct provider.
 
     For research with ``use_web_search=True``:
-      • Anthropic → Claude web_search tool
+      • Anthropic  → Claude web_search tool
+      • Google     → Gemini google_search grounding tool
+      • OpenAI     → search model variant + web_search_options
       • Perplexity → search is built-in (automatic)
-      • Others → completes without live search data
+      • Others     → completes without live search data
     """
     provider = model_info.provider
 
@@ -471,6 +479,7 @@ async def complete(
             user_message,
             max_tokens,
             temperature,
+            use_web_search=use_web_search and model_info.supports_web_search,
         )
 
     # OpenAI-compatible providers (openai, perplexity, deepseek, …)
@@ -482,6 +491,10 @@ async def complete(
             f"Add it to PROVIDER_BASE_URLS in llm_providers.py."
         )
 
+    web_search_opts = None
+    if use_web_search and model_info.supports_web_search and provider == "openai":
+        web_search_opts = {}
+
     return await _complete_openai_compatible(
         base_url,
         api_key,
@@ -490,4 +503,5 @@ async def complete(
         user_message,
         max_tokens,
         temperature,
+        web_search_options=web_search_opts,
     )
