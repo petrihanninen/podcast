@@ -6,7 +6,7 @@ Default host voices are samples from [LibriVox](https://librivox.org/) public do
 
 ## Running locally
 
-You need Docker and an [Anthropic API key](https://console.anthropic.com/).
+You need Docker and some API keys.
 
 ```bash
 cp .env.example .env   # then fill in your API keys
@@ -50,9 +50,15 @@ pytest tests/test_routers_pages.py::TestFormatDuration
 | Variable | Description | Default |
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql+asyncpg://podcast:podcast@localhost:9002/podcast` |
-| `ANTHROPIC_API_KEY` | Your Anthropic API key | — |
-| `DEEPSEEK_API_KEY` | DeepSeek API key (used for transcript generation) | — |
+| `ANTHROPIC_API_KEY` | Anthropic API key | — |
+| `DEEPSEEK_API_KEY` | DeepSeek API key | — |
+| `GOOGLE_API_KEY` | Google Gemini API key | — |
+| `OPENAI_API_KEY` | OpenAI API key | — |
+| `PERPLEXITY_API_KEY` | Perplexity API key | — |
 | `HF_TOKEN` | Hugging Face token (for downloading TTS models) | — |
 | `AUDIO_DIR` | Where episode audio files are stored | `/data/audio` |
+| `VOICE_REFS_DIR` | Directory for voice reference `.wav` samples | `/app/voice_refs` |
 | `BASE_URL` | Public URL (used in RSS feed links) | `http://localhost:9001` |
 | `API_PASSWORD` | Optional password for mutating API endpoints | — |
+| `ALLOWED_SUB` | Allowed subject for authentication | — |
+| `SESSION_SECRET` | Session secret for authentication | — |
