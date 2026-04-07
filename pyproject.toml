@@ -15,7 +15,7 @@ dependencies = [
     "anthropic>=0.86",
     "feedgen>=1.0",
     "pydub>=0.25",
-    "chatterbox-tts>=0.1.7",
+    "modal>=0.73",
     "httpx>=0.28",
     "PyJWT[crypto]>=2.8",
     "setuptools>=68",
@@ -26,6 +26,9 @@ test = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "httpx>=0.28",
+]
+tts = [
+    "chatterbox-tts>=0.1.7",
 ]
 
 [build-system]

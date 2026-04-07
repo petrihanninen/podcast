@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 # Install system dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg build-essential cmake && \
+    apt-get install -y --no-install-recommends ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip
@@ -29,4 +29,4 @@ RUN chmod +x entrypoint.sh
 RUN pip install --no-cache-dir --no-deps .
 
 ENTRYPOINT ["./entrypoint.sh"]
-CMD ["web"]
+CMD ["combined"]
