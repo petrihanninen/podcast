@@ -1,8 +1,18 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://podcast:podcast@localhost:9002/podcast"
+
+    @model_validator(mode="after")
+    def _normalize_database_url(self):
+        """Railway injects DATABASE_URL with 'postgresql://' — rewrite to asyncpg."""
+        if self.database_url.startswith("postgresql://"):
+            self.database_url = self.database_url.replace(
+                "postgresql://", "postgresql+asyncpg://", 1
+            )
+        return self
 
     # LLM provider API keys
     anthropic_api_key: str = ""
