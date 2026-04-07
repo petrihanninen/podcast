@@ -168,21 +168,20 @@ templates.env.globals["get_model_display_name"] = _get_model_display_name
 @router.get("/shoo/callback", response_class=HTMLResponse)
 async def shoo_callback(request: Request):
     """Callback page for Shoo OAuth — shoo.js handles the code exchange."""
-    return templates.TemplateResponse("auth_callback.html", {"request": request})
+    return templates.TemplateResponse(request, "auth_callback.html")
 
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request, db: AsyncSession = Depends(get_db)):
     episodes = await list_episodes(db)
     return templates.TemplateResponse(
-        "index.html", {"request": request, "episodes": episodes}
+        request, "index.html", context={"episodes": episodes}
     )
 
 
 @router.get("/episodes/new", response_class=HTMLResponse)
 async def new_episode_page(request: Request, _user: str = Depends(require_auth_page)):
-    return templates.TemplateResponse("episode_new.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "episode_new.html", context={
         "research_models": RESEARCH_MODELS,
         "transcript_models": TRANSCRIPT_MODELS,
         "default_research_model": DEFAULT_RESEARCH_MODEL,
@@ -208,9 +207,9 @@ async def new_episode_submit(request: Request, db: AsyncSession = Depends(get_db
 
     if not topic:
         return templates.TemplateResponse(
+            request,
             "episode_new.html",
-            {
-                "request": request,
+            context={
                 "error": "Topic is required",
                 "research_models": RESEARCH_MODELS,
                 "transcript_models": TRANSCRIPT_MODELS,
@@ -235,13 +234,13 @@ async def episode_detail(
     if not episode:
         return HTMLResponse("Not found", status_code=404)
     return templates.TemplateResponse(
-        "episode_detail.html", {"request": request, "episode": episode}
+        request, "episode_detail.html", context={"episode": episode}
     )
 
 
 @router.get("/logs", response_class=HTMLResponse)
 async def logs_page(request: Request, _user: str = Depends(require_auth_page)):
-    return templates.TemplateResponse("logs.html", {"request": request})
+    return templates.TemplateResponse(request, "logs.html")
 
 
 @router.get("/settings", response_class=HTMLResponse)
@@ -265,7 +264,7 @@ async def settings_page(request: Request, db: AsyncSession = Depends(get_db), _u
             pass
 
     return templates.TemplateResponse(
-        "settings.html", {"request": request, "settings": s, "tone_notes": tone_notes}
+        request, "settings.html", context={"settings": s, "tone_notes": tone_notes}
     )
 
 
@@ -378,6 +377,5 @@ async def metrics_page(request: Request, db: AsyncSession = Depends(get_db), _us
         episode_rows.append(row)
 
     return templates.TemplateResponse(
-        "metrics.html",
-        {"request": request, "totals": totals, "episodes": episode_rows},
+        request, "metrics.html", context={"totals": totals, "episodes": episode_rows}
     )

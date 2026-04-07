@@ -30,7 +30,7 @@ async def login_page(request: Request, next: str = "/"):
     if user:
         return RedirectResponse(url=next, status_code=303)
     return templates.TemplateResponse(
-        "login.html", {"request": request, "next_url": next}
+        request, "login.html", context={"next_url": next}
     )
 
 
@@ -86,4 +86,4 @@ async def me_page(request: Request):
     # No server-side auth check — this is a setup page used to discover your
     # pairwise_sub *before* ALLOWED_SUB is configured.  The template shows
     # the Shoo identity from client-side localStorage (or a sign-in link).
-    return templates.TemplateResponse("auth_me.html", {"request": request})
+    return templates.TemplateResponse(request, "auth_me.html")
