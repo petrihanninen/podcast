@@ -249,11 +249,43 @@
 {% if episode.status == 'ready' and episode.audio_filename %}
 <div class="card" style="margin-block-end: var(--space-4);">
   <p class="card__title">Listen</p>
-  <audio controls preload="metadata">
+  <audio id="podcast-player" controls preload="metadata">
     <source src="/audio/{{ episode.audio_filename }}" type="audio/mpeg">
     Your browser does not support the audio element.
   </audio>
+  <div class="speed-controls">
+    <span class="speed-controls__label">Speed</span>
+    <div class="speed-controls__buttons">
+      <button class="speed-btn speed-btn--active" data-speed="1">1×</button>
+      <button class="speed-btn" data-speed="1.5">1.5×</button>
+      <button class="speed-btn" data-speed="2">2×</button>
+      <button class="speed-btn" data-speed="2.5">2.5×</button>
+      <button class="speed-btn" data-speed="3">3×</button>
+    </div>
+  </div>
 </div>
+<script>
+(function() {
+  var audio = document.getElementById('podcast-player');
+  var buttons = document.querySelectorAll('.speed-btn');
+  var stored = localStorage.getItem('podcastSpeed');
+  if (stored) {
+    audio.playbackRate = parseFloat(stored);
+    buttons.forEach(function(b) {
+      b.classList.toggle('speed-btn--active', b.dataset.speed === stored);
+    });
+  }
+  buttons.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var rate = parseFloat(this.dataset.speed);
+      audio.playbackRate = rate;
+      localStorage.setItem('podcastSpeed', this.dataset.speed);
+      buttons.forEach(function(b) { b.classList.remove('speed-btn--active'); });
+      this.classList.add('speed-btn--active');
+    });
+  });
+})();
+</script>
 {% endif %}
 
 <div class="detail-grid">
