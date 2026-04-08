@@ -10,7 +10,7 @@ import logging
 import signal
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 
 from podcast.database import get_session
 from podcast.log_handler import setup_logging, start_flush_loop, stop_flush_loop
@@ -46,6 +46,15 @@ EPISODE_STATUS_MAP = {
     "transcript": "writing_transcript",
     "tts": "generating_audio",
     "encode": "encoding",
+}
+
+# Prioritise jobs closer to completion so we finish episodes rather than
+# starting new ones.  Lower number = picked first.
+STEP_PRIORITY = {
+    "encode": 0,
+    "tts": 1,
+    "transcript": 2,
+    "research": 3,
 }
 
 POLL_INTERVAL = 10  # seconds
@@ -125,10 +134,16 @@ async def _poll_jobs():
             step = None
 
             async with get_session() as db:
+                # Prefer jobs closer to completion (encode > tts >
+                # transcript > research), then oldest first.
+                step_priority = case(
+                    *((Job.step == s, prio) for s, prio in STEP_PRIORITY.items()),
+                    else_=99,
+                )
                 result = await db.execute(
                     select(Job)
                     .where(Job.status == "pending")
-                    .order_by(Job.created_at)
+                    .order_by(step_priority, Job.created_at)
                     .limit(1)
                     .with_for_update(skip_locked=True)
                 )
