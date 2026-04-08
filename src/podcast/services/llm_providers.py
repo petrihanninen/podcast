@@ -350,13 +350,13 @@ RESEARCH_MODELS: dict[str, ModelInfo] = {
         supports_web_search=True,
         pricing={"input": 2.0, "output": 8.0},
     ),
-    "gpt-mini": ModelInfo(
-        id="gpt-mini",
+    "gpt-nano": ModelInfo(
+        id="gpt-nano",
         provider="openai",
-        model_id="gpt-4o-mini-search-preview",
-        display_name="GPT 4o-mini Search",
+        model_id="gpt-5-nano-2025-08-07",
+        display_name="GPT-5 Nano",
         supports_web_search=True,
-        pricing={"input": 0.15, "output": 0.60},
+        pricing={"input": 0.05, "output": 0.40},
     ),
 }
 
@@ -388,10 +388,10 @@ TRANSCRIPT_MODELS: dict[str, ModelInfo] = {
     "gpt-mini": ModelInfo(
         id="gpt-mini",
         provider="openai",
-        model_id="gpt-4o-mini",
+        model_id="gpt-5.4-mini-2026-03-17",
         display_name="GPT 5.4-mini",
         supports_web_search=False,
-        pricing={"input": 0.15, "output": 0.60},
+        pricing={"input": 0.75, "output": 4.50},
     ),
     "deepseek": ModelInfo(
         id="deepseek",
