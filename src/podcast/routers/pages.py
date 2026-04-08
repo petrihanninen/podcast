@@ -228,7 +228,8 @@ async def new_episode_submit(request: Request, db: AsyncSession = Depends(get_db
 
 @router.get("/episodes/{episode_id}", response_class=HTMLResponse)
 async def episode_detail(
-    request: Request, episode_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    request: Request, episode_id: uuid.UUID, db: AsyncSession = Depends(get_db),
+    _user: str = Depends(require_auth_page),
 ):
     episode = await get_episode(db, episode_id)
     if not episode:

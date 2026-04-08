@@ -12,10 +12,12 @@ from datetime import datetime, timezone
 
 from sqlalchemy import case, select
 
+from podcast.config import settings
 from podcast.database import get_session
 from podcast.log_handler import setup_logging, start_flush_loop, stop_flush_loop
 from podcast.models import Episode, Job
 from podcast.services.encoder import encode_mp3
+from podcast.services.llm_providers import get_all_model_pricing
 from podcast.services.research import run_research
 from podcast.services.transcript import generate_transcript
 from podcast.services.tts import synthesize_speech
@@ -58,6 +60,37 @@ STEP_PRIORITY = {
 }
 
 POLL_INTERVAL = 10  # seconds
+
+# Steps that incur significant LLM/GPU cost — gated by daily spend limit.
+COSTLY_STEPS = {"research", "transcript", "tts"}
+
+_MODEL_PRICING = get_all_model_pricing()
+_DEFAULT_PRICING = {"input": 3.0, "output": 15.0}
+
+
+async def _todays_spend() -> float:
+    """Sum estimated cost of all jobs completed today (UTC)."""
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    async with get_session() as db:
+        result = await db.execute(
+            select(Job).where(
+                Job.status == "completed",
+                Job.completed_at >= today_start,
+            )
+        )
+        jobs = result.scalars().all()
+
+    total = 0.0
+    for job in jobs:
+        if not job.metrics_json:
+            continue
+        metrics = json.loads(job.metrics_json)
+        input_t = metrics.get("input_tokens", 0)
+        output_t = metrics.get("output_tokens", 0)
+        model = metrics.get("model", "")
+        pricing = _MODEL_PRICING.get(model, _DEFAULT_PRICING)
+        total += (input_t * pricing["input"] + output_t * pricing["output"]) / 1_000_000
+    return total
 
 _shutdown = False
 
@@ -157,6 +190,20 @@ async def _poll_jobs():
                 job_id = job.id
                 episode_id = job.episode_id
                 step = job.step
+
+                # Gate costly steps behind daily spend limit
+                if step in COSTLY_STEPS and settings.daily_spend_limit > 0:
+                    spend = await _todays_spend()
+                    if spend >= settings.daily_spend_limit:
+                        logger.warning(
+                            "Daily spend limit ($%.2f/$%.2f) reached — skipping %s job %s",
+                            spend,
+                            settings.daily_spend_limit,
+                            step,
+                            job_id,
+                        )
+                        await asyncio.sleep(POLL_INTERVAL)
+                        continue
 
                 # Mark as running
                 job.status = "running"

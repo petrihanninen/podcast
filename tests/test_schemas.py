@@ -39,10 +39,10 @@ class TestEpisodeCreate:
         with pytest.raises(ValidationError):
             EpisodeCreate()
 
-    def test_empty_string_topic_accepted(self):
-        """Pydantic allows empty string for str fields by default."""
-        data = EpisodeCreate(topic="")
-        assert data.topic == ""
+    def test_empty_string_topic_rejected(self):
+        """Empty topic should be rejected (min_length=1)."""
+        with pytest.raises(ValidationError):
+            EpisodeCreate(topic="")
 
 
 class TestJobResponse:

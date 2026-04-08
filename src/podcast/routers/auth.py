@@ -1,6 +1,7 @@
 """Auth routes: login flow, token verification, session management."""
 
 import logging
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -21,10 +22,23 @@ templates = Jinja2Templates(directory="src/podcast/templates")
 
 router = APIRouter(prefix="/auth")
 
+# Determine cookie secure flag from config rather than per-request scheme,
+# so it works correctly behind TLS-terminating reverse proxies.
+_cookie_secure = settings.base_url.startswith("https://")
+
+
+def _safe_redirect_url(next_url: str) -> str:
+    """Validate that a redirect target is a relative path (prevent open redirect)."""
+    parsed = urlparse(next_url)
+    if parsed.netloc or parsed.scheme:
+        return "/"
+    return next_url
+
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, next: str = "/"):
     """Render the login page which auto-triggers Shoo sign-in via JS."""
+    next = _safe_redirect_url(next)
     # If already authenticated, skip straight to destination
     user = get_current_user(request)
     if user:
@@ -63,7 +77,7 @@ async def verify_token(request: Request):
         max_age=SESSION_MAX_AGE,
         httponly=True,
         samesite="lax",
-        secure=request.url.scheme == "https",
+        secure=_cookie_secure,
         path="/",
     )
     return response
@@ -75,15 +89,3 @@ async def logout(request: Request):
     response = RedirectResponse(url="/", status_code=303)
     response.delete_cookie(SESSION_COOKIE, path="/")
     return response
-
-
-@router.get("/me", response_class=HTMLResponse)
-async def me_page(request: Request):
-    """Temporary page to view one's pairwise_sub after login.
-
-    Delete this route after grabbing your sub for the ALLOWED_SUB env var.
-    """
-    # No server-side auth check — this is a setup page used to discover your
-    # pairwise_sub *before* ALLOWED_SUB is configured.  The template shows
-    # the Shoo identity from client-side localStorage (or a sign-in link).
-    return templates.TemplateResponse(request, "auth_me.html")

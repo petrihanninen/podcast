@@ -13,13 +13,22 @@ from tests.conftest import make_episode, make_mock_get_session, make_settings
 
 class TestReadVoiceRefBytes:
     def test_reads_from_db_path(self, tmp_path):
-        """When db_path exists, should read from it."""
+        """When db_path is a valid filename within voice_refs_dir, should read from it."""
         voice_file = tmp_path / "voice.wav"
         voice_bytes = b"fake wav data"
         voice_file.write_bytes(voice_bytes)
 
-        result = _read_voice_ref_bytes(str(voice_file), "default.wav")
-        assert result == voice_bytes
+        with patch("podcast.services.tts.settings") as mock_settings:
+            mock_settings.voice_refs_dir = str(tmp_path)
+            result = _read_voice_ref_bytes("voice.wav", "default.wav")
+            assert result == voice_bytes
+
+    def test_rejects_path_traversal(self, tmp_path):
+        """db_path with path traversal should be rejected."""
+        with patch("podcast.services.tts.settings") as mock_settings:
+            mock_settings.voice_refs_dir = str(tmp_path)
+            result = _read_voice_ref_bytes("../../etc/passwd", "default.wav")
+            assert result is None
 
     def test_falls_back_to_default(self, tmp_path):
         """When db_path doesn't exist, should try default."""
@@ -29,7 +38,7 @@ class TestReadVoiceRefBytes:
 
         with patch("podcast.services.tts.settings") as mock_settings:
             mock_settings.voice_refs_dir = str(tmp_path)
-            result = _read_voice_ref_bytes("/nonexistent/path.wav", "default.wav")
+            result = _read_voice_ref_bytes("nonexistent.wav", "default.wav")
             assert result == default_bytes
 
     def test_returns_none_when_not_found(self):

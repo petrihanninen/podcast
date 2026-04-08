@@ -1,9 +1,10 @@
 import json
+import os
 import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class TtsProgress(BaseModel):
@@ -13,9 +14,9 @@ class TtsProgress(BaseModel):
 
 
 class EpisodeCreate(BaseModel):
-    topic: str
-    title: str | None = None
-    description: str | None = None
+    topic: str = Field(..., min_length=1, max_length=5000)
+    title: str | None = Field(None, max_length=200)
+    description: str | None = Field(None, max_length=5000)
     target_length_minutes: Literal[15, 30, 60, 120] = 30
     research_model: str | None = None      # Registry key, e.g. "claude-sonnet"
     transcript_model: str | None = None    # Registry key, e.g. "deepseek"
@@ -76,16 +77,26 @@ class EpisodeListItem(BaseModel):
 
 
 class SettingsUpdate(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    author: str | None = None
-    language: str | None = None
-    image_url: str | None = None
-    host_a_name: str | None = None
-    host_b_name: str | None = None
+    title: str | None = Field(None, max_length=200)
+    description: str | None = Field(None, max_length=2000)
+    author: str | None = Field(None, max_length=200)
+    language: str | None = Field(None, max_length=10)
+    image_url: str | None = Field(None, max_length=500)
+    host_a_name: str | None = Field(None, max_length=50)
+    host_b_name: str | None = Field(None, max_length=50)
     voice_ref_a_path: str | None = None
     voice_ref_b_path: str | None = None
-    transcript_tone_notes: list[str] | None = None
+    transcript_tone_notes: list[str] | None = Field(None, max_length=20)
+
+    @field_validator("voice_ref_a_path", "voice_ref_b_path", mode="before")
+    @classmethod
+    def _validate_voice_filename(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        basename = os.path.basename(v)
+        if basename != v or ".." in v:
+            raise ValueError("Must be a simple filename, not a path")
+        return basename
 
 
 class SettingsResponse(BaseModel):

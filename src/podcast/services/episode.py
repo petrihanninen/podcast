@@ -86,11 +86,16 @@ async def delete_episode(db: AsyncSession, episode_id: uuid.UUID) -> bool:
     if not episode:
         return False
 
-    # Clean up audio files
+    # Clean up audio files (use basename to prevent path traversal)
     if episode.audio_filename:
-        audio_path = os.path.join(settings.audio_dir, episode.audio_filename)
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
+        safe_name = os.path.basename(episode.audio_filename)
+        audio_path = os.path.join(settings.audio_dir, safe_name)
+        resolved = os.path.realpath(audio_path)
+        if resolved.startswith(os.path.realpath(settings.audio_dir)):
+            if os.path.exists(resolved):
+                os.remove(resolved)
+        else:
+            logger.warning("Refusing to delete file outside audio dir: %s", audio_path)
 
     # Clean up segments directory
     segments_dir = os.path.join(settings.audio_dir, "segments", str(episode.id))

@@ -1,7 +1,7 @@
 import json
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -76,7 +76,7 @@ async def create_episode_endpoint(data: EpisodeCreate, db: AsyncSession = Depend
 
 
 @router.get("/episodes", response_model=list[EpisodeListItem])
-async def list_episodes_endpoint(db: AsyncSession = Depends(get_db)):
+async def list_episodes_endpoint(db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
     episodes = await list_episodes(db)
     result = []
     for ep in episodes:
@@ -90,7 +90,7 @@ async def list_episodes_endpoint(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/episodes/{episode_id}", response_model=EpisodeResponse)
-async def get_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def get_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
     episode = await get_episode(db, episode_id)
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
@@ -121,8 +121,9 @@ async def retry_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depen
 @router.get("/logs", response_model=LogListResponse)
 async def get_logs(
     db: AsyncSession = Depends(get_db),
-    page: int = 1,
-    page_size: int = 100,
+    _user: str = Depends(require_auth),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=100, ge=1, le=500),
     level: str | None = None,
     source: str | None = None,
     search: str | None = None,
@@ -159,7 +160,7 @@ async def get_logs(
 
 
 @router.get("/settings", response_model=SettingsResponse)
-async def get_settings(db: AsyncSession = Depends(get_db)):
+async def get_settings(db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
     s = await db.get(PodcastSettings, 1)
     if not s:
         s = PodcastSettings()
@@ -192,7 +193,7 @@ def _calc_cost(input_tokens: int, output_tokens: int, model: str = "") -> float:
 
 
 @router.get("/metrics")
-async def get_metrics(db: AsyncSession = Depends(get_db)):
+async def get_metrics(db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
     """Aggregate metrics across all episodes."""
     result = await db.execute(
         select(Episode)

@@ -24,6 +24,19 @@ def get_tts_progress(episode_id: uuid.UUID) -> dict | None:
     return None
 
 
+def _validate_voice_ref_path(path: str) -> str | None:
+    """Validate that a voice ref path resolves to a file inside the allowed directory.
+
+    Returns the resolved path if valid, None otherwise.
+    """
+    allowed_dir = os.path.realpath(settings.voice_refs_dir)
+    resolved = os.path.realpath(os.path.join(allowed_dir, os.path.basename(path)))
+    if not resolved.startswith(allowed_dir + os.sep) and resolved != allowed_dir:
+        logger.warning("Voice ref path escapes allowed directory: %s", path)
+        return None
+    return resolved
+
+
 def _read_voice_ref_bytes(db_path: str | None, default_filename: str) -> bytes | None:
     """Read voice reference WAV file as bytes.
 
@@ -34,11 +47,13 @@ def _read_voice_ref_bytes(db_path: str | None, default_filename: str) -> bytes |
     Returns:
         WAV bytes if file exists, None otherwise
     """
-    # Try database path first
-    if db_path and os.path.exists(db_path):
-        logger.debug("Reading voice ref from DB path: %s", db_path)
-        with open(db_path, "rb") as f:
-            return f.read()
+    # Try database path first (validate it stays within voice_refs_dir)
+    if db_path:
+        safe_path = _validate_voice_ref_path(db_path)
+        if safe_path and os.path.exists(safe_path):
+            logger.debug("Reading voice ref from DB path: %s", safe_path)
+            with open(safe_path, "rb") as f:
+                return f.read()
 
     # Try default path
     default_path = os.path.join(settings.voice_refs_dir, default_filename)

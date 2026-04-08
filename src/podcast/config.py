@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     api_password: str = ""
     allowed_sub: str = ""
     session_secret: str = ""
+    daily_spend_limit: float = 5.0  # USD – set DAILY_SPEND_LIMIT env var to override
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
