@@ -178,6 +178,37 @@
   .level-WARNING { color: var(--color-warning); font-weight: 600; }
   .level-INFO { color: var(--color-info); }
   .level-DEBUG { color: var(--color-text-muted); }
+
+  /* Collapsible sections */
+  .card__title[data-collapsible] {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    user-select: none;
+    border-radius: var(--radius-md);
+    margin: calc(-1 * var(--space-2));
+    padding: var(--space-2);
+    transition: background 0.1s ease;
+  }
+  .card__title[data-collapsible]:hover {
+    background: var(--color-bg-elevated);
+  }
+  .card__title[data-collapsible]::after {
+    content: '▾';
+    margin-inline-start: auto;
+    font-size: 0.65em;
+    color: var(--color-text-muted);
+    transition: transform 0.15s ease;
+  }
+  .card.collapsed .card__title[data-collapsible]::after {
+    transform: rotate(-90deg);
+  }
+  .card.collapsed .card__title[data-collapsible] {
+    margin-block-end: calc(-1 * var(--space-2));
+  }
+  .card.collapsed .card__content {
+    display: none;
+  }
 </style>
 {% endblock %}
 
@@ -210,57 +241,61 @@
 {% set steps = build_pipeline_info(episode) %}
 {% if episode.status != 'pending' or episode.jobs|length > 0 %}
 <div class="card" style="margin-block-end: var(--space-4);">
-  <p class="card__title">Pipeline</p>
-  <div id="pipeline" class="pipeline" style="margin-block-start: var(--space-3);">
-    {% for step in steps %}
-    <div class="pipeline-step pipeline-step--{{ step.status }}" data-step="{{ step.name }}">
-      {% if not loop.last %}
-      <div class="pipeline-step__connector"></div>
-      {% endif %}
-      <div class="pipeline-step__dot">
-        {% if step.status == 'completed' %}✓{% elif step.status == 'running' %}⋯{% elif step.status == 'failed' %}✕{% else %}{{ loop.index }}{% endif %}
-      </div>
-      <span class="pipeline-step__label">{{ step.label }}</span>
-      {% if step.duration %}
-      <span class="pipeline-step__meta">{{ step.duration }}</span>
-      {% elif step.status == 'running' %}
-        {% if step.name == 'tts' %}
-          {% set tts_prog = get_tts_progress(episode) %}
-          {% if tts_prog %}
-          <span class="pipeline-step__meta">{{ tts_prog.segments_completed }}/{{ tts_prog.total_segments }} · {{ tts_prog.audio_duration_formatted }}</span>
-          <div class="tts-progress-bar">
-            <div class="tts-progress-bar__fill" style="width: {{ (tts_prog.segments_completed / tts_prog.total_segments * 100) if tts_prog.total_segments > 0 else 0 }}%"></div>
-          </div>
-          {% else %}
-          <span class="pipeline-step__meta">Starting…</span>
-          {% endif %}
-        {% else %}
-        <span class="pipeline-step__meta">In progress…</span>
+  <p class="card__title" data-collapsible>Pipeline</p>
+  <div class="card__content">
+    <div id="pipeline" class="pipeline" style="margin-block-start: var(--space-3);">
+      {% for step in steps %}
+      <div class="pipeline-step pipeline-step--{{ step.status }}" data-step="{{ step.name }}">
+        {% if not loop.last %}
+        <div class="pipeline-step__connector"></div>
         {% endif %}
-      {% elif step.attempts > 1 %}
-      <span class="pipeline-step__meta">Attempt {{ step.attempts }}</span>
-      {% endif %}
+        <div class="pipeline-step__dot">
+          {% if step.status == 'completed' %}✓{% elif step.status == 'running' %}⋯{% elif step.status == 'failed' %}✕{% else %}{{ loop.index }}{% endif %}
+        </div>
+        <span class="pipeline-step__label">{{ step.label }}</span>
+        {% if step.duration %}
+        <span class="pipeline-step__meta">{{ step.duration }}</span>
+        {% elif step.status == 'running' %}
+          {% if step.name == 'tts' %}
+            {% set tts_prog = get_tts_progress(episode) %}
+            {% if tts_prog %}
+            <span class="pipeline-step__meta">{{ tts_prog.segments_completed }}/{{ tts_prog.total_segments }} · {{ tts_prog.audio_duration_formatted }}</span>
+            <div class="tts-progress-bar">
+              <div class="tts-progress-bar__fill" style="width: {{ (tts_prog.segments_completed / tts_prog.total_segments * 100) if tts_prog.total_segments > 0 else 0 }}%"></div>
+            </div>
+            {% else %}
+            <span class="pipeline-step__meta">Starting…</span>
+            {% endif %}
+          {% else %}
+          <span class="pipeline-step__meta">In progress…</span>
+          {% endif %}
+        {% elif step.attempts > 1 %}
+        <span class="pipeline-step__meta">Attempt {{ step.attempts }}</span>
+        {% endif %}
+      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
   </div>
 </div>
 {% endif %}
 
 {% if episode.status == 'ready' and episode.audio_filename %}
 <div class="card" style="margin-block-end: var(--space-4);">
-  <p class="card__title">Listen</p>
-  <audio id="podcast-player" controls preload="metadata">
-    <source src="/audio/{{ episode.audio_filename }}" type="audio/mpeg">
-    Your browser does not support the audio element.
-  </audio>
-  <div class="speed-controls">
-    <span class="speed-controls__label">Speed</span>
-    <div class="speed-controls__buttons">
-      <button class="speed-btn speed-btn--active" data-speed="1">1×</button>
-      <button class="speed-btn" data-speed="1.5">1.5×</button>
-      <button class="speed-btn" data-speed="2">2×</button>
-      <button class="speed-btn" data-speed="2.5">2.5×</button>
-      <button class="speed-btn" data-speed="3">3×</button>
+  <p class="card__title" data-collapsible>Listen</p>
+  <div class="card__content">
+    <audio id="podcast-player" controls preload="metadata">
+      <source src="/audio/{{ episode.audio_filename }}" type="audio/mpeg">
+      Your browser does not support the audio element.
+    </audio>
+    <div class="speed-controls">
+      <span class="speed-controls__label">Speed</span>
+      <div class="speed-controls__buttons">
+        <button class="speed-btn speed-btn--active" data-speed="1">1×</button>
+        <button class="speed-btn" data-speed="1.5">1.5×</button>
+        <button class="speed-btn" data-speed="2">2×</button>
+        <button class="speed-btn" data-speed="2.5">2.5×</button>
+        <button class="speed-btn" data-speed="3">3×</button>
+      </div>
     </div>
   </div>
 </div>
@@ -332,53 +367,59 @@
 </div>
 
 <div class="card" style="margin-block-end: var(--space-4);">
-  <p class="card__title">Topic</p>
-  <p class="card__body">{{ episode.topic }}</p>
+  <p class="card__title" data-collapsible>Topic</p>
+  <div class="card__content">
+    <p class="card__body">{{ episode.topic }}</p>
+  </div>
 </div>
 
 {% if episode.transcript %}
 <div class="card" style="margin-block-end: var(--space-4);">
-  <p class="card__title">Transcript</p>
-  <div id="transcript" style="margin-block-start: var(--space-3); max-height: 500px; overflow-y: auto;">
-    {% for segment in episode.transcript | from_json %}
-    <div class="transcript-segment">
-      <p class="speaker">{{ segment.speaker }}</p>
-      <p class="text">{{ segment.text }}</p>
+  <p class="card__title" data-collapsible>Transcript</p>
+  <div class="card__content">
+    <div id="transcript" style="margin-block-start: var(--space-3); max-height: 500px; overflow-y: auto;">
+      {% for segment in episode.transcript | from_json %}
+      <div class="transcript-segment">
+        <p class="speaker">{{ segment.speaker }}</p>
+        <p class="text">{{ segment.text }}</p>
+      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
   </div>
 </div>
 {% endif %}
 
 {% if episode.research_notes %}
-<details style="margin-block-end: var(--space-4);">
-  <summary class="btn btn--ghost" style="cursor: pointer;">Show research notes</summary>
-  <div class="card" style="margin-block-start: var(--space-2);">
-    <pre style="white-space: pre-wrap; font-size: var(--text-caption); color: var(--color-text-secondary);">{{ episode.research_notes }}</pre>
+<div class="card collapsed" style="margin-block-end: var(--space-4);">
+  <p class="card__title" data-collapsible>Research Notes</p>
+  <div class="card__content">
+    <pre style="white-space: pre-wrap; font-size: var(--text-caption); color: var(--color-text-secondary); word-break: break-word; margin-block-start: var(--space-3);">{{ episode.research_notes }}</pre>
   </div>
-</details>
+</div>
 {% endif %}
 
-<details id="logsDetails" style="margin-block-end: var(--space-4);">
-  <summary class="btn btn--ghost" style="cursor: pointer;">Show logs</summary>
-  <div id="logsContainer" class="episode-logs-wrap">
-    <table class="episode-logs-table">
-      <thead>
-        <tr>
-          <th>Time</th>
-          <th>Level</th>
-          <th>Message</th>
-        </tr>
-      </thead>
-      <tbody id="logsBody">
-        <tr><td colspan="3" style="text-align: center; color: var(--color-text-muted); padding: var(--space-4);">Loading…</td></tr>
-      </tbody>
-    </table>
+<div id="logsSection" class="card collapsed" style="margin-block-end: var(--space-4);">
+  <p class="card__title" data-collapsible>Logs</p>
+  <div class="card__content">
+    <div id="logsContainer" class="episode-logs-wrap" style="margin-block-start: var(--space-3);">
+      <table class="episode-logs-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Level</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody id="logsBody">
+          <tr><td colspan="3" style="text-align: center; color: var(--color-text-muted); padding: var(--space-4);">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="logsFooter" style="margin-block-start: var(--space-2); display: none;">
+      <a href="/logs" class="btn btn--ghost btn--sm">View all logs</a>
+    </div>
   </div>
-  <div id="logsFooter" style="margin-block-start: var(--space-2); display: none;">
-    <a href="/logs" class="btn btn--ghost btn--sm">View all logs</a>
-  </div>
-</details>
+</div>
 
 <div class="flex gap-3" style="margin-block-start: var(--space-4);">
   <a href="/" class="btn btn--ghost">Back to episodes</a>
@@ -527,9 +568,21 @@
     location.reload();
   }
 
-  // Episode logs
+  // Collapsible sections
+  document.querySelectorAll('.card__title[data-collapsible]').forEach(function(title) {
+    title.addEventListener('click', function() {
+      var card = this.closest('.card');
+      var wasCollapsed = card.classList.contains('collapsed');
+      card.classList.toggle('collapsed');
+      if (wasCollapsed) {
+        card.dispatchEvent(new CustomEvent('section-expand'));
+      }
+    });
+  });
+
+  // Episode logs (lazy-loaded on expand)
   (function () {
-    const details = document.getElementById('logsDetails');
+    const logsSection = document.getElementById('logsSection');
     const body = document.getElementById('logsBody');
     const footer = document.getElementById('logsFooter');
     let loaded = false;
@@ -583,8 +636,8 @@
       }
     }
 
-    details.addEventListener('toggle', function () {
-      if (details.open) fetchEpisodeLogs();
+    logsSection.addEventListener('section-expand', function () {
+      fetchEpisodeLogs();
     });
   })();
 </script>
