@@ -135,4 +135,52 @@
     <button type="submit" class="btn btn--primary btn--lg">Create Episode</button>
   </div>
 </form>
+
+<script>
+(function () {
+  const STORAGE_KEY = 'episode_new_settings';
+  const form = document.querySelector('form[action="/episodes/new"]');
+  if (!form) return;
+
+  // Restore saved settings on page load
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (saved) {
+      // Restore episode length radio
+      if (saved.target_length_minutes) {
+        const radio = form.querySelector(
+          `input[name="target_length_minutes"][value="${saved.target_length_minutes}"]`
+        );
+        if (radio) radio.checked = true;
+      }
+      // Restore research model select
+      if (saved.research_model) {
+        const sel = form.querySelector('#research_model');
+        if (sel && [...sel.options].some(o => o.value === saved.research_model)) {
+          sel.value = saved.research_model;
+        }
+      }
+      // Restore transcript model select
+      if (saved.transcript_model) {
+        const sel = form.querySelector('#transcript_model');
+        if (sel && [...sel.options].some(o => o.value === saved.transcript_model)) {
+          sel.value = saved.transcript_model;
+        }
+      }
+    }
+  } catch (_) { /* ignore corrupt data */ }
+
+  // Save settings on form submit
+  form.addEventListener('submit', function () {
+    try {
+      const checkedRadio = form.querySelector('input[name="target_length_minutes"]:checked');
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        target_length_minutes: checkedRadio ? checkedRadio.value : null,
+        research_model: form.querySelector('#research_model')?.value ?? null,
+        transcript_model: form.querySelector('#transcript_model')?.value ?? null,
+      }));
+    } catch (_) { /* storage full or unavailable */ }
+  });
+})();
+</script>
 {% endblock %}
