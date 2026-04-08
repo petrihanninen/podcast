@@ -132,13 +132,21 @@ async def _complete_openai_compatible(
         },
         timeout=httpx.Timeout(300.0, connect=30.0),
     ) as client:
+        # OpenAI newer models require "max_completion_tokens" instead of
+        # "max_tokens".  Other OpenAI-compatible providers (Perplexity,
+        # DeepSeek) still expect the legacy "max_tokens" key.
+        token_key = (
+            "max_completion_tokens"
+            if base_url == PROVIDER_BASE_URLS["openai"]
+            else "max_tokens"
+        )
         payload = {
             "model": model_id,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user_message},
             ],
-            "max_tokens": max_tokens,
+            token_key: max_tokens,
             "temperature": temperature,
             "stream": False,
         }
