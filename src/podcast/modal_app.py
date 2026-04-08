@@ -11,7 +11,6 @@ import tempfile
 import time
 
 import modal
-from pydub import AudioSegment
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -70,6 +69,7 @@ def generate_tts(
     import perth
     import torch
     import torchaudio as ta
+    from pydub import AudioSegment
 
     # Swap watermarker before importing ChatterboxTTS
     perth.PerthImplicitWatermarker = perth.DummyWatermarker
