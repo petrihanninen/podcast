@@ -205,6 +205,105 @@ async def _complete_openai_compatible(
 
 
 # ---------------------------------------------------------------------------
+# Provider implementation: OpenAI Responses API (web-search capable)
+# ---------------------------------------------------------------------------
+
+async def _complete_openai_responses(
+    model_id: str,
+    system: str,
+    user_message: str,
+    max_tokens: int,
+    temperature: float,
+    use_web_search: bool = False,
+) -> LLMResponse:
+    """OpenAI Responses API client — supports web_search tool."""
+    api_key = settings.openai_api_key
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not configured")
+
+    async with httpx.AsyncClient(
+        base_url="https://api.openai.com/v1",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        timeout=httpx.Timeout(300.0, connect=30.0),
+    ) as client:
+        payload: dict = {
+            "model": model_id,
+            "instructions": system,
+            "input": user_message,
+            "max_output_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        if use_web_search:
+            payload["tools"] = [{"type": "web_search"}]
+
+        last_error: Exception | None = None
+        for attempt in range(5):
+            try:
+                response = await client.post("/responses", json=payload)
+                response.raise_for_status()
+                break
+            except httpx.HTTPStatusError as exc:
+                last_error = exc
+                if exc.response.status_code in (429, 500, 502, 503, 504):
+                    wait = min(2**attempt * 2, 60)
+                    logger.warning(
+                        "OpenAI Responses API %s error %d (attempt %d/5), retrying in %ds",
+                        model_id,
+                        exc.response.status_code,
+                        attempt + 1,
+                        wait,
+                    )
+                    await asyncio.sleep(wait)
+                elif exc.response.status_code == 400:
+                    try:
+                        error_body = exc.response.json()
+                    except Exception:
+                        error_body = exc.response.text
+                    logger.error(
+                        "OpenAI Responses API 400 Bad Request: %s (model=%s)",
+                        error_body,
+                        model_id,
+                    )
+                    raise
+                else:
+                    raise
+            except httpx.TimeoutException as exc:
+                last_error = exc
+                wait = min(2**attempt * 2, 60)
+                logger.warning(
+                    "OpenAI Responses API timeout (attempt %d/5), retrying in %ds",
+                    attempt + 1,
+                    wait,
+                )
+                await asyncio.sleep(wait)
+        else:
+            raise RuntimeError(
+                f"OpenAI Responses API ({model_id}) failed after 5 attempts: {last_error}"
+            ) from last_error
+
+    data = response.json()
+    usage = data.get("usage", {})
+
+    # Extract text from the output array — find the message item
+    text = ""
+    for item in data.get("output", []):
+        if item.get("type") == "message":
+            for content_block in item.get("content", []):
+                if content_block.get("type") == "output_text":
+                    text += content_block.get("text", "")
+
+    return LLMResponse(
+        text=text,
+        input_tokens=usage.get("input_tokens", 0),
+        output_tokens=usage.get("output_tokens", 0),
+        model=model_id,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Provider implementation: Google Gemini (native REST API)
 # ---------------------------------------------------------------------------
 
@@ -456,7 +555,7 @@ async def complete(
     For research with ``use_web_search=True``:
       • Anthropic  → Claude web_search tool
       • Google     → Gemini google_search grounding tool
-      • OpenAI     → search model variant + web_search_options
+      • OpenAI     → Responses API with web_search tool
       • Perplexity → search is built-in (automatic)
       • Others     → completes without live search data
     """
@@ -482,6 +581,17 @@ async def complete(
             use_web_search=use_web_search and model_info.supports_web_search,
         )
 
+    # OpenAI with web search → use the Responses API (supports web_search tool)
+    if provider == "openai" and use_web_search and model_info.supports_web_search:
+        return await _complete_openai_responses(
+            model_info.model_id,
+            system,
+            user_message,
+            max_tokens,
+            temperature,
+            use_web_search=True,
+        )
+
     # OpenAI-compatible providers (openai, perplexity, deepseek, …)
     api_key = _get_api_key(provider)
     base_url = PROVIDER_BASE_URLS.get(provider)
@@ -491,10 +601,6 @@ async def complete(
             f"Add it to PROVIDER_BASE_URLS in llm_providers.py."
         )
 
-    web_search_opts = None
-    if use_web_search and model_info.supports_web_search and provider == "openai":
-        web_search_opts = {}
-
     return await _complete_openai_compatible(
         base_url,
         api_key,
@@ -503,5 +609,4 @@ async def complete(
         user_message,
         max_tokens,
         temperature,
-        web_search_options=web_search_opts,
     )
