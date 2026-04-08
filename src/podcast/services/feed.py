@@ -41,8 +41,8 @@ async def generate_feed(db: AsyncSession) -> str:
     fg.podcast.itunes_category("Technology")
     fg.podcast.itunes_explicit("no")
 
-    if podcast_settings.image_url:
-        fg.podcast.itunes_image(podcast_settings.image_url)
+    image_url = podcast_settings.image_url or f"{base}/static/til.png"
+    fg.podcast.itunes_image(image_url)
 
     # Episodes
     result = await db.execute(
