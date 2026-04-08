@@ -2,31 +2,41 @@ import logging
 import os
 import uuid
 
+import httpx
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from podcast.config import settings
 from podcast.models import Episode, Job
-from podcast.services.claude_client import get_client
 
 logger = logging.getLogger(__name__)
 
 
 async def generate_title_from_topic(topic: str) -> str:
-    """Generate a short podcast episode title from the topic using Claude."""
-    client = get_client()
+    """Generate a short podcast episode title from the topic using GPT-5-nano."""
     try:
-        response = await client.messages.create(
-            model="claude-haiku-4-20250414",
-            max_tokens=100,
-            messages=[{
-                "role": "user",
-                "content": f"Generate a short, catchy podcast episode title (max 8 words) for this topic. Output ONLY the title, no quotes or punctuation unless part of the title.\n\nTopic: {topic}",
-            }],
-        )
-        title = response.content[0].text.strip().strip('"\'')
-        return title[:200] if title else topic[:100]
+        async with httpx.AsyncClient(
+            base_url="https://api.openai.com/v1",
+            headers={
+                "Authorization": f"Bearer {settings.openai_api_key}",
+                "Content-Type": "application/json",
+            },
+            timeout=httpx.Timeout(30.0, connect=10.0),
+        ) as client:
+            response = await client.post("/chat/completions", json={
+                "model": "gpt-5-nano-2025-08-07",
+                "messages": [{
+                    "role": "user",
+                    "content": f"Generate a short, catchy podcast episode title (max 8 words) for this topic. Output ONLY the title, no quotes or punctuation unless part of the title.\n\nTopic: {topic}",
+                }],
+                "max_completion_tokens": 100,
+                "temperature": 0.7,
+            })
+            response.raise_for_status()
+            data = response.json()
+            title = data["choices"][0]["message"]["content"].strip().strip('"\'')
+            return title[:200] if title else topic[:100]
     except Exception:
         logger.warning("Failed to generate title from topic, using fallback", exc_info=True)
         return topic[:100] if len(topic) > 100 else topic

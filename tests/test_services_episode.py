@@ -15,14 +15,24 @@ from podcast.services.episode import (
     list_episodes,
     retry_episode,
 )
-from tests.conftest import make_episode, make_job, make_claude_response
+from tests.conftest import make_episode, make_job
 
 
-def _mock_claude_title(title_text="Generated Title"):
-    """Return a patch context for generate_title_from_topic's Claude call."""
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(return_value=make_claude_response(title_text))
-    return patch("podcast.services.episode.get_client", return_value=mock_client)
+def _mock_openai_title(title_text="Generated Title"):
+    """Return a patch context for generate_title_from_topic's OpenAI call."""
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json.return_value = {
+        "choices": [{"message": {"content": title_text}}],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+    }
+
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    return patch("podcast.services.episode.httpx.AsyncClient", return_value=mock_client)
 
 
 class TestCreateEpisode:
@@ -63,7 +73,7 @@ class TestCreateEpisode:
         added = []
         db.add = lambda obj: added.append(obj)
 
-        with _mock_claude_title():
+        with _mock_openai_title():
             await create_episode(db, "Topic")
 
         jobs = [o for o in added if isinstance(o, Job)]
@@ -75,7 +85,7 @@ class TestCreateEpisode:
         db = AsyncMock()
         db.add = MagicMock()
 
-        with _mock_claude_title("Short topic"):
+        with _mock_openai_title("Short topic"):
             episode = await create_episode(db, "Short topic")
         assert episode.title == "Short topic"
 
@@ -84,7 +94,7 @@ class TestCreateEpisode:
         db.add = MagicMock()
 
         long_topic = "x" * 200
-        with _mock_claude_title(long_topic[:200]):
+        with _mock_openai_title(long_topic[:200]):
             episode = await create_episode(db, long_topic)
         assert len(episode.title) <= 200
 
@@ -92,7 +102,7 @@ class TestCreateEpisode:
         db = AsyncMock()
         db.add = MagicMock()
 
-        with _mock_claude_title("My topic"):
+        with _mock_openai_title("My topic"):
             episode = await create_episode(db, "My topic", title=None)
         assert episode.title == "My topic"
 
@@ -100,7 +110,7 @@ class TestCreateEpisode:
         db = AsyncMock()
         db.add = MagicMock()
 
-        with _mock_claude_title("My topic"):
+        with _mock_openai_title("My topic"):
             episode = await create_episode(db, "My topic", title="")
         assert episode.title == "My topic"
 
