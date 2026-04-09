@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 import uuid
@@ -57,18 +58,41 @@ async def run_research(episode_id: uuid.UUID) -> dict:
         topic[:100],
     )
 
+    MAX_EMPTY_RETRIES = 2
     t0 = time.monotonic()
-    response = await complete(
-        model_info,
-        system=system_prompt,
-        user_message=f"Research the following topic thoroughly:\n\n{topic}",
-        max_tokens=config["max_tokens"],
-        use_web_search=True,
-    )
+    response = None
+
+    for attempt in range(MAX_EMPTY_RETRIES + 1):
+        response = await complete(
+            model_info,
+            system=system_prompt,
+            user_message=f"Research the following topic thoroughly:\n\n{topic}",
+            max_tokens=config["max_tokens"],
+            use_web_search=True,
+        )
+        if response.text:
+            break
+        if attempt < MAX_EMPTY_RETRIES:
+            wait = 3 * (2 ** attempt)
+            logger.warning(
+                "Research for episode %s returned empty text "
+                "(attempt %d/%d, model=%s), retrying in %ds...",
+                episode_id,
+                attempt + 1,
+                MAX_EMPTY_RETRIES + 1,
+                model_info.model_id,
+                wait,
+            )
+            await asyncio.sleep(wait)
+
     duration = time.monotonic() - t0
 
     if not response.text:
-        raise RuntimeError("No research content generated")
+        raise RuntimeError(
+            f"No research content generated after {MAX_EMPTY_RETRIES + 1} attempts "
+            f"(model={model_info.model_id}). The API returned 200 OK but the "
+            f"response contained no text output. Check worker logs for raw response details."
+        )
 
     # Save results
     async with get_session() as db:
