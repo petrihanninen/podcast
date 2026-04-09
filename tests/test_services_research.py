@@ -22,13 +22,13 @@ def _make_llm_response(text: str, input_tokens: int = 100, output_tokens: int = 
         text=text,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
-        model="claude-sonnet-4-6-20250514",
+        model="gpt-5-nano-2025-08-07",
     )
 
 
 class TestRunResearch:
     async def test_success(self):
-        ep = make_episode(topic="Quantum computing", research_model="claude-sonnet")
+        ep = make_episode(topic="Quantum computing", research_model="gpt-nano")
         db = _make_session_with_episode(ep)
         response = _make_llm_response("Research notes about quantum computing", 150, 300)
 
@@ -39,14 +39,14 @@ class TestRunResearch:
 
                 metrics = await run_research(ep.id)
 
-        assert metrics["model"] == "claude-sonnet-4-6-20250514"
+        assert metrics["model"] == "gpt-5-nano-2025-08-07"
         assert metrics["input_tokens"] == 150
         assert metrics["output_tokens"] == 300
         assert "duration_seconds" in metrics
         assert metrics["output_chars"] == len("Research notes about quantum computing")
 
     async def test_saves_research_notes(self):
-        ep = make_episode(topic="AI safety", research_model="claude-sonnet")
+        ep = make_episode(topic="AI safety", research_model="gpt-nano")
         db = _make_session_with_episode(ep)
         response = _make_llm_response("Research about AI safety")
 
@@ -71,7 +71,7 @@ class TestRunResearch:
                 await run_research(uuid.uuid4())
 
     async def test_empty_response_raises(self):
-        ep = make_episode(topic="Empty topic", research_model="claude-sonnet")
+        ep = make_episode(topic="Empty topic", research_model="gpt-nano")
         db = _make_session_with_episode(ep)
         response = _make_llm_response("", 10, 0)
 
@@ -85,7 +85,7 @@ class TestRunResearch:
 
     async def test_uses_web_search_flag(self):
         """Verify the complete() call includes use_web_search=True."""
-        ep = make_episode(topic="Test", research_model="claude-sonnet")
+        ep = make_episode(topic="Test", research_model="gpt-nano")
         db = _make_session_with_episode(ep)
         response = _make_llm_response("research")
 
@@ -123,7 +123,7 @@ class TestRunResearch:
 
     async def test_metric_calculation(self):
         """Verify metrics are calculated correctly."""
-        ep = make_episode(topic="Test", research_model="gemini-flash")
+        ep = make_episode(topic="Test", research_model="gpt-nano")
         db = _make_session_with_episode(ep)
         response = _make_llm_response("Test research content", 500, 1000)
 
@@ -134,7 +134,7 @@ class TestRunResearch:
 
                 metrics = await run_research(ep.id)
 
-        assert metrics["provider"] == "google"
+        assert metrics["provider"] == "openai"
         assert metrics["input_tokens"] == 500
         assert metrics["output_tokens"] == 1000
         assert metrics["output_chars"] == len("Test research content")

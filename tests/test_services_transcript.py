@@ -33,7 +33,7 @@ def _make_llm_response(text: str, input_tokens: int = 200, output_tokens: int = 
         text=text,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
-        model="deepseek-chat",
+        model="gpt-5.4-mini-2026-03-17",
     )
 
 
@@ -46,7 +46,7 @@ class TestGenerateTranscript:
         ep = make_episode(
             topic="AI",
             research_notes="Some research notes",
-            transcript_model="deepseek"
+            transcript_model="gpt-mini"
         )
         settings = make_settings()
         db = _setup_db(ep, settings)
@@ -66,7 +66,7 @@ class TestGenerateTranscript:
         assert metrics["output_tokens"] == 400
         assert metrics["word_count"] > 0
         assert "duration_seconds" in metrics
-        assert metrics["model"] == "deepseek-chat"
+        assert metrics["model"] == "gpt-5.4-mini-2026-03-17"
 
     async def test_saves_transcript_as_json(self):
         transcript_data = [
@@ -75,7 +75,7 @@ class TestGenerateTranscript:
         ep = make_episode(
             topic="Test",
             research_notes="notes",
-            transcript_model="deepseek"
+            transcript_model="gpt-mini"
         )
         db = _setup_db(ep, make_settings())
 
@@ -107,7 +107,7 @@ class TestGenerateTranscript:
         ep = make_episode(
             topic="Test",
             research_notes="notes",
-            transcript_model="deepseek"
+            transcript_model="gpt-mini"
         )
         db = _setup_db(ep, make_settings())
 
@@ -126,7 +126,7 @@ class TestGenerateTranscript:
         ep = make_episode(
             topic="Test",
             research_notes="notes",
-            transcript_model="deepseek"
+            transcript_model="gpt-mini"
         )
         db = _setup_db(ep, make_settings())
 
@@ -145,7 +145,7 @@ class TestGenerateTranscript:
         ep = make_episode(
             topic="Test",
             research_notes="notes",
-            transcript_model="deepseek"
+            transcript_model="gpt-mini"
         )
         db = _setup_db(ep, make_settings())
 
@@ -164,7 +164,7 @@ class TestGenerateTranscript:
         ep = make_episode(
             topic="Test",
             research_notes="notes",
-            transcript_model="deepseek"
+            transcript_model="gpt-mini"
         )
         db = _setup_db(ep, make_settings())
 
@@ -188,7 +188,7 @@ class TestGenerateTranscript:
         ep = make_episode(
             topic="Test",
             research_notes="notes",
-            transcript_model="deepseek"
+            transcript_model="gpt-mini"
         )
         db = _setup_db(ep, make_settings())
 
@@ -209,7 +209,7 @@ class TestGenerateTranscript:
         ep = make_episode(
             topic="Test",
             research_notes=long_notes,
-            transcript_model="deepseek"
+            transcript_model="gpt-mini"
         )
         db = _setup_db(ep, make_settings())
 
@@ -233,7 +233,7 @@ class TestGenerateTranscript:
         ep = make_episode(
             topic="Test",
             research_notes="notes",
-            transcript_model="deepseek"
+            transcript_model="gpt-mini"
         )
         settings = make_settings(host_a_name="Alice", host_b_name="Bob")
         db = _setup_db(ep, settings)
@@ -258,7 +258,7 @@ class TestGenerateTranscript:
         ep = make_episode(
             topic="Test",
             research_notes="notes",
-            transcript_model="deepseek"
+            transcript_model="gpt-mini"
         )
         db = _setup_db(ep, None)
 
@@ -286,7 +286,7 @@ class TestGenerateTranscript:
         ep = make_episode(
             topic="Test",
             research_notes="notes",
-            transcript_model="deepseek"
+            transcript_model="gpt-mini"
         )
         db = _setup_db(ep, make_settings())
 

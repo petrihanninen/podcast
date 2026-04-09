@@ -95,8 +95,6 @@ class TestEpisodeResponse:
             status="ready",
             error_message=None,
             failed_step=None,
-            research_model="claude-sonnet",
-            transcript_model="deepseek",
             research_notes="notes",
             transcript='[{"speaker":"A","text":"hi"}]',
             audio_filename="test.mp3",
@@ -111,8 +109,6 @@ class TestEpisodeResponse:
         assert data.id == ep_id
         assert data.status == "ready"
         assert data.audio_filename == "test.mp3"
-        assert data.research_model == "claude-sonnet"
-        assert data.transcript_model == "deepseek"
 
     def test_default_jobs_empty_list(self):
         now = datetime.now(timezone.utc)

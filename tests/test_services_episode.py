@@ -53,25 +53,6 @@ class TestCreateEpisode:
         assert episode.user_id == _TEST_USER_ID
         db.flush.assert_awaited_once()
 
-    async def test_creates_episode_with_model_selections(self):
-        db = AsyncMock()
-        added = []
-        db.add = lambda obj: added.append(obj)
-
-        episode = await create_episode(
-            db,
-            "Test topic",
-            "My Title",
-            "My desc",
-            research_model="gemini-flash",
-            transcript_model="deepseek",
-            user_id=_TEST_USER_ID,
-        )
-
-        assert isinstance(episode, Episode)
-        assert episode.research_model == "gemini-flash"
-        assert episode.transcript_model == "deepseek"
-
     async def test_creates_initial_research_job(self):
         db = AsyncMock()
         added = []

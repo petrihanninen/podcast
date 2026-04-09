@@ -108,8 +108,8 @@ class TestTranscriptModels:
 class TestGetResearchModel:
     def test_returns_model_by_key(self):
         """get_research_model should return correct model by key."""
-        model = get_research_model("claude-sonnet")
-        assert model.id == "claude-sonnet"
+        model = get_research_model("gpt-nano")
+        assert model.id == "gpt-nano"
         assert isinstance(model, ModelInfo)
 
     def test_returns_default_when_none(self):
@@ -138,8 +138,8 @@ class TestGetResearchModel:
 class TestGetTranscriptModel:
     def test_returns_model_by_key(self):
         """get_transcript_model should return correct model by key."""
-        model = get_transcript_model("deepseek")
-        assert model.id == "deepseek"
+        model = get_transcript_model("gpt-mini")
+        assert model.id == "gpt-mini"
         assert isinstance(model, ModelInfo)
 
     def test_returns_default_when_none(self):
@@ -217,12 +217,12 @@ class TestModelProviders:
         for model in TRANSCRIPT_MODELS.values():
             assert model.provider in valid_providers
 
-    def test_anthropic_models_in_both_registries(self):
-        """At least one Anthropic model should be in both registries."""
-        research_anthropic = any(m.provider == "anthropic" for m in RESEARCH_MODELS.values())
-        transcript_anthropic = any(m.provider == "anthropic" for m in TRANSCRIPT_MODELS.values())
-        assert research_anthropic
-        assert transcript_anthropic
+    def test_openai_models_in_both_registries(self):
+        """At least one OpenAI model should be in both registries."""
+        research_openai = any(m.provider == "openai" for m in RESEARCH_MODELS.values())
+        transcript_openai = any(m.provider == "openai" for m in TRANSCRIPT_MODELS.values())
+        assert research_openai
+        assert transcript_openai
 
 
 class TestWebSearchSupport:

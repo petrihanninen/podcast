@@ -54,46 +54,6 @@ class TestHealthEndpoint:
         assert response.json() == {"status": "ok"}
 
 
-class TestGetModelsEndpoint:
-    def test_returns_available_models(self):
-        client = _make_test_client(AsyncMock())
-        response = client.get("/api/models")
-        assert response.status_code == 200
-        data = response.json()
-
-        # Should have research and transcript keys
-        assert "research" in data
-        assert "transcript" in data
-
-        # Should have at least one model in each
-        assert len(data["research"]) > 0
-        assert len(data["transcript"]) > 0
-
-        # Check research model structure
-        research_models = data["research"]
-        for key, model_info in research_models.items():
-            assert "display_name" in model_info
-            assert "provider" in model_info
-            assert "supports_web_search" in model_info
-
-        # Check transcript model structure
-        transcript_models = data["transcript"]
-        for key, model_info in transcript_models.items():
-            assert "display_name" in model_info
-            assert "provider" in model_info
-
-    def test_includes_expected_models(self):
-        """Verify some standard models are available."""
-        client = _make_test_client(AsyncMock())
-        response = client.get("/api/models")
-        data = response.json()
-
-        # Check for at least one research model
-        assert len(data["research"]) > 0
-        # Check for at least one transcript model
-        assert len(data["transcript"]) > 0
-
-
 # ---------------------------------------------------------------------------
 # Episodes CRUD
 # ---------------------------------------------------------------------------
@@ -120,36 +80,6 @@ class TestCreateEpisodeEndpoint:
         # Verify user_id was passed
         mock_create.assert_awaited_once()
         assert mock_create.call_args[1]["user_id"] == _TEST_USER_ID
-
-    def test_creates_episode_with_model_selections(self):
-        db = AsyncMock()
-        ep = make_episode(
-            title="My Episode",
-            topic="Test topic",
-            status="pending",
-            research_model="gemini-flash",
-            transcript_model="deepseek",
-            user_id=_TEST_USER_ID,
-        )
-
-        with patch("podcast.routers.api.create_episode", new_callable=AsyncMock) as mock_create:
-            mock_create.return_value = ep
-            client = _make_test_client(db)
-            response = client.post(
-                "/api/episodes",
-                json={
-                    "topic": "Test topic",
-                    "title": "My Episode",
-                    "research_model": "gemini-flash",
-                    "transcript_model": "deepseek"
-                },
-            )
-
-        assert response.status_code == 200
-        # Verify create_episode was called with the model parameters
-        call_kwargs = mock_create.call_args[1]
-        assert call_kwargs["research_model"] == "gemini-flash"
-        assert call_kwargs["transcript_model"] == "deepseek"
 
     def test_missing_topic_returns_422(self):
         client = _make_test_client(AsyncMock())
