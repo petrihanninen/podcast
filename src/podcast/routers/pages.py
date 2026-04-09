@@ -194,6 +194,7 @@ async def new_episode_submit(request: Request, db: AsyncSession = Depends(get_db
         db, topic, title,
         target_length_minutes=target_length,
     )
+    await db.commit()
     return RedirectResponse(url=f"/episodes/{episode.id}", status_code=303)
 
 
