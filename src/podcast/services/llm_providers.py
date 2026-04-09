@@ -295,13 +295,34 @@ async def _complete_openai_responses(
     data = response.json()
     usage = data.get("usage", {})
 
-    # Extract text from the output array — find the message item
+    # Check for incomplete/failed status
+    status = data.get("status", "unknown")
+    if status != "completed":
+        logger.warning(
+            "OpenAI Responses API returned status=%s (model=%s)",
+            status,
+            model_id,
+        )
+
+    # Extract text from the output array — find the message item.
+    # Accept both "output_text" (current) and "text" (legacy) content types.
     text = ""
     for item in data.get("output", []):
         if item.get("type") == "message":
             for content_block in item.get("content", []):
-                if content_block.get("type") == "output_text":
+                if content_block.get("type") in ("output_text", "text"):
                     text += content_block.get("text", "")
+
+    if not text:
+        output_types = [item.get("type") for item in data.get("output", [])]
+        logger.warning(
+            "OpenAI Responses API returned empty text "
+            "(model=%s, status=%s, output_types=%s, raw_output=%.500s)",
+            model_id,
+            status,
+            output_types,
+            str(data.get("output", [])),
+        )
 
     return LLMResponse(
         text=text,
@@ -433,30 +454,6 @@ def _get_api_key(provider: str) -> str:
 # ===================================================================
 
 RESEARCH_MODELS: dict[str, ModelInfo] = {
-    "claude-sonnet": ModelInfo(
-        id="claude-sonnet",
-        provider="anthropic",
-        model_id="claude-sonnet-4-6-20250514",
-        display_name="Claude Sonnet 4.6",
-        supports_web_search=True,
-        pricing={"input": 3.0, "output": 15.0},
-    ),
-    "gemini-flash": ModelInfo(
-        id="gemini-flash",
-        provider="google",
-        model_id="gemini-2.5-flash",
-        display_name="Gemini 3 Flash",
-        supports_web_search=True,
-        pricing={"input": 0.50, "output": 3.0},
-    ),
-    "perplexity-deep-research": ModelInfo(
-        id="perplexity-deep-research",
-        provider="perplexity",
-        model_id="sonar-deep-research",
-        display_name="Perplexity Sonar Deep Research",
-        supports_web_search=True,
-        pricing={"input": 2.0, "output": 8.0},
-    ),
     "gpt-nano": ModelInfo(
         id="gpt-nano",
         provider="openai",
@@ -468,30 +465,6 @@ RESEARCH_MODELS: dict[str, ModelInfo] = {
 }
 
 TRANSCRIPT_MODELS: dict[str, ModelInfo] = {
-    "claude-sonnet": ModelInfo(
-        id="claude-sonnet",
-        provider="anthropic",
-        model_id="claude-sonnet-4-6-20250514",
-        display_name="Claude Sonnet 4.6",
-        supports_web_search=False,
-        pricing={"input": 3.0, "output": 15.0},
-    ),
-    "gemini-flash": ModelInfo(
-        id="gemini-flash",
-        provider="google",
-        model_id="gemini-2.5-flash",
-        display_name="Gemini 3 Flash",
-        supports_web_search=False,
-        pricing={"input": 0.50, "output": 3.0},
-    ),
-    "perplexity-pro": ModelInfo(
-        id="perplexity-pro",
-        provider="perplexity",
-        model_id="sonar-pro",
-        display_name="Perplexity Sonar Pro Writing",
-        supports_web_search=False,
-        pricing={"input": 3.0, "output": 15.0},
-    ),
     "gpt-mini": ModelInfo(
         id="gpt-mini",
         provider="openai",
@@ -500,18 +473,10 @@ TRANSCRIPT_MODELS: dict[str, ModelInfo] = {
         supports_web_search=False,
         pricing={"input": 0.75, "output": 4.50},
     ),
-    "deepseek": ModelInfo(
-        id="deepseek",
-        provider="deepseek",
-        model_id="deepseek-chat",
-        display_name="DeepSeek",
-        supports_web_search=False,
-        pricing={"input": 0.27, "output": 1.10},
-    ),
 }
 
-DEFAULT_RESEARCH_MODEL = "claude-sonnet"
-DEFAULT_TRANSCRIPT_MODEL = "deepseek"
+DEFAULT_RESEARCH_MODEL = "gpt-nano"
+DEFAULT_TRANSCRIPT_MODEL = "gpt-mini"
 
 
 # ---------------------------------------------------------------------------

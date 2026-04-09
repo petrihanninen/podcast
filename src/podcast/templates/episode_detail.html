@@ -352,18 +352,6 @@
     <div class="detail-item__value">#{{ episode.episode_number }}</div>
   </div>
   {% endif %}
-  {% if episode.research_model %}
-  <div class="detail-item">
-    <div class="detail-item__label">Research</div>
-    <div class="detail-item__value">{{ get_model_display_name('research', episode.research_model) }}</div>
-  </div>
-  {% endif %}
-  {% if episode.transcript_model %}
-  <div class="detail-item">
-    <div class="detail-item__label">Transcript</div>
-    <div class="detail-item__value">{{ get_model_display_name('transcript', episode.transcript_model) }}</div>
-  </div>
-  {% endif %}
 </div>
 
 <div class="card" style="margin-block-end: var(--space-4);">

@@ -100,30 +100,6 @@
     </div>
   </div>
 
-  <div class="model-selects">
-    <div class="model-select">
-      <label for="research_model">Research model</label>
-      <select id="research_model" name="research_model">
-        {% for key, model in research_models.items() %}
-        <option value="{{ key }}" {% if key == default_research_model %}selected{% endif %}>
-          {{ model.display_name }}{% if model.supports_web_search %} ✦{% endif %}
-        </option>
-        {% endfor %}
-      </select>
-      <p class="model-hint">✦ = includes web search</p>
-    </div>
-    <div class="model-select">
-      <label for="transcript_model">Transcript model</label>
-      <select id="transcript_model" name="transcript_model">
-        {% for key, model in transcript_models.items() %}
-        <option value="{{ key }}" {% if key == default_transcript_model %}selected{% endif %}>
-          {{ model.display_name }}
-        </option>
-        {% endfor %}
-      </select>
-    </div>
-  </div>
-
   {% if password_required %}
   <div class="form-group">
     <label for="password">Password</label>
@@ -153,21 +129,7 @@
         );
         if (radio) radio.checked = true;
       }
-      // Restore research model select
-      if (saved.research_model) {
-        const sel = form.querySelector('#research_model');
-        if (sel && [...sel.options].some(o => o.value === saved.research_model)) {
-          sel.value = saved.research_model;
-        }
-      }
-      // Restore transcript model select
-      if (saved.transcript_model) {
-        const sel = form.querySelector('#transcript_model');
-        if (sel && [...sel.options].some(o => o.value === saved.transcript_model)) {
-          sel.value = saved.transcript_model;
-        }
-      }
-    }
+}
   } catch (_) { /* ignore corrupt data */ }
 
   // Save settings on form submit
@@ -176,8 +138,6 @@
       const checkedRadio = form.querySelector('input[name="target_length_minutes"]:checked');
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         target_length_minutes: checkedRadio ? checkedRadio.value : null,
-        research_model: form.querySelector('#research_model')?.value ?? null,
-        transcript_model: form.querySelector('#transcript_model')?.value ?? null,
       }));
     } catch (_) { /* storage full or unavailable */ }
   });

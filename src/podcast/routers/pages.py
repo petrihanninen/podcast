@@ -13,13 +13,7 @@ from podcast.database import get_db
 from podcast.models import Episode, PodcastSettings
 from podcast.services.episode import create_episode, get_episode, list_episodes
 from podcast.services.tts import get_tts_progress as _read_tts_progress
-from podcast.services.llm_providers import (
-    RESEARCH_MODELS,
-    TRANSCRIPT_MODELS,
-    DEFAULT_RESEARCH_MODEL,
-    DEFAULT_TRANSCRIPT_MODEL,
-    get_all_model_pricing,
-)
+from podcast.services.llm_providers import get_all_model_pricing
 
 # Pricing pulled dynamically from provider registry
 _MODEL_PRICING = get_all_model_pricing()
@@ -147,13 +141,6 @@ def _get_tts_progress(episode) -> dict | None:
     return progress
 
 
-def _get_model_display_name(step: str, model_key: str) -> str:
-    """Resolve a model key to its display name for templates."""
-    registry = RESEARCH_MODELS if step == "research" else TRANSCRIPT_MODELS
-    info = registry.get(model_key)
-    return info.display_name if info else model_key
-
-
 # Register template globals
 templates.env.globals["status_badge"] = _status_badge
 templates.env.globals["status_label"] = _status_label
@@ -162,7 +149,6 @@ templates.env.globals["format_file_size"] = _format_file_size
 templates.env.globals["build_pipeline_info"] = _build_pipeline_info
 templates.env.globals["get_current_step_index"] = _get_current_step_index
 templates.env.globals["get_tts_progress"] = _get_tts_progress
-templates.env.globals["get_model_display_name"] = _get_model_display_name
 
 
 @router.get("/shoo/callback", response_class=HTMLResponse)
@@ -181,12 +167,7 @@ async def index(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.get("/episodes/new", response_class=HTMLResponse)
 async def new_episode_page(request: Request, _user: str = Depends(require_auth_page)):
-    return templates.TemplateResponse(request, "episode_new.html", context={
-        "research_models": RESEARCH_MODELS,
-        "transcript_models": TRANSCRIPT_MODELS,
-        "default_research_model": DEFAULT_RESEARCH_MODEL,
-        "default_transcript_model": DEFAULT_TRANSCRIPT_MODEL,
-    })
+    return templates.TemplateResponse(request, "episode_new.html")
 
 
 @router.post("/episodes/new")
@@ -194,8 +175,6 @@ async def new_episode_submit(request: Request, db: AsyncSession = Depends(get_db
     form = await request.form()
     topic = form.get("topic", "").strip()
     title = form.get("title", "").strip() or None
-    research_model = form.get("research_model", "").strip() or None
-    transcript_model = form.get("transcript_model", "").strip() or None
 
     # Parse and validate target length
     try:
@@ -209,19 +188,11 @@ async def new_episode_submit(request: Request, db: AsyncSession = Depends(get_db
         return templates.TemplateResponse(
             request,
             "episode_new.html",
-            context={
-                "error": "Topic is required",
-                "research_models": RESEARCH_MODELS,
-                "transcript_models": TRANSCRIPT_MODELS,
-                "default_research_model": DEFAULT_RESEARCH_MODEL,
-                "default_transcript_model": DEFAULT_TRANSCRIPT_MODEL,
-            },
+            context={"error": "Topic is required"},
         )
     episode = await create_episode(
         db, topic, title,
         target_length_minutes=target_length,
-        research_model=research_model,
-        transcript_model=transcript_model,
     )
     return RedirectResponse(url=f"/episodes/{episode.id}", status_code=303)
 

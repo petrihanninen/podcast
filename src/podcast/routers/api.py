@@ -27,11 +27,7 @@ from podcast.services.episode import (
     list_episodes,
     retry_episode,
 )
-from podcast.services.llm_providers import (
-    RESEARCH_MODELS,
-    TRANSCRIPT_MODELS,
-    get_all_model_pricing,
-)
+from podcast.services.llm_providers import get_all_model_pricing
 
 # Build pricing table dynamically from the provider registry
 MODEL_PRICING = get_all_model_pricing()
@@ -46,21 +42,6 @@ async def health():
     return {"status": "ok"}
 
 
-@router.get("/models")
-async def get_models():
-    """Return available models for research and transcript steps."""
-    return {
-        "research": {
-            key: {"display_name": m.display_name, "provider": m.provider, "supports_web_search": m.supports_web_search}
-            for key, m in RESEARCH_MODELS.items()
-        },
-        "transcript": {
-            key: {"display_name": m.display_name, "provider": m.provider}
-            for key, m in TRANSCRIPT_MODELS.items()
-        },
-    }
-
-
 @router.post("/episodes", response_model=EpisodeResponse)
 async def create_episode_endpoint(data: EpisodeCreate, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
     episode = await create_episode(
@@ -69,8 +50,6 @@ async def create_episode_endpoint(data: EpisodeCreate, db: AsyncSession = Depend
         data.title,
         data.description,
         target_length_minutes=data.target_length_minutes,
-        research_model=data.research_model,
-        transcript_model=data.transcript_model,
     )
     return episode
 
