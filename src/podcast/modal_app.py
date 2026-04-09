@@ -1,4 +1,4 @@
-"""Modal app for GPU-accelerated TTS using Chatterbox.
+"""Modal app for GPU-accelerated TTS using Chatterbox Turbo.
 
 Deployed separately to Modal and called remotely from the Railway worker.
 The model is baked into the image at build time to avoid cold-start downloads.
@@ -26,15 +26,15 @@ tts_image = (
 
 
 def _download_model():
-    """Download and cache the Chatterbox model at image build time."""
+    """Download and cache the Chatterbox Turbo model at image build time."""
     import perth
 
     perth.PerthImplicitWatermarker = perth.DummyWatermarker
 
-    from chatterbox.tts import ChatterboxTTS
+    from chatterbox.tts_turbo import ChatterboxTurboTTS
 
     # Download to default cache — gets baked into the image layer
-    ChatterboxTTS.from_pretrained(device="cpu")
+    ChatterboxTurboTTS.from_pretrained(device="cpu")
 
 
 # Bake model weights into the image so cold starts skip the download
@@ -71,15 +71,15 @@ def generate_tts(
     import torchaudio as ta
     from pydub import AudioSegment
 
-    # Swap watermarker before importing ChatterboxTTS
+    # Swap watermarker before importing ChatterboxTurboTTS
     perth.PerthImplicitWatermarker = perth.DummyWatermarker
 
-    from chatterbox.tts import ChatterboxTTS
+    from chatterbox.tts_turbo import ChatterboxTurboTTS
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    logger.info("Loading Chatterbox model on %s...", device)
+    logger.info("Loading Chatterbox Turbo model on %s...", device)
     model_start = time.monotonic()
-    model = ChatterboxTTS.from_pretrained(device=device)
+    model = ChatterboxTurboTTS.from_pretrained(device=device)
     sample_rate = model.sr
     model_load_time = time.monotonic() - model_start
     logger.info("Model loaded in %.1fs (sample rate: %d)", model_load_time, sample_rate)
