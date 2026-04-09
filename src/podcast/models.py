@@ -3,13 +3,14 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     BigInteger,
-    CheckConstraint,
+    Boolean,
     DateTime,
     ForeignKey,
     Index,
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -22,10 +23,33 @@ class Base(DeclarativeBase):
     pass
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shoo_sub: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    feed_token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow
+    )
+
+    episodes: Mapped[list["Episode"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    settings: Mapped["PodcastSettings"] = relationship(
+        back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+
+
 class Episode(Base):
     __tablename__ = "episodes"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     topic: Mapped[str] = mapped_column(Text, nullable=False)
@@ -55,6 +79,7 @@ class Episode(Base):
         DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow
     )
 
+    user: Mapped["User"] = relationship(back_populates="episodes")
     jobs: Mapped[list["Job"]] = relationship(
         back_populates="episode", cascade="all, delete-orphan"
     )
@@ -62,6 +87,7 @@ class Episode(Base):
     __table_args__ = (
         Index("idx_episodes_status", "status"),
         Index("idx_episodes_published_at", published_at.desc()),
+        Index("idx_episodes_user_id", "user_id"),
     )
 
 
@@ -96,7 +122,10 @@ class Job(Base):
 class PodcastSettings(Base):
     __tablename__ = "podcast_settings"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
     title: Mapped[str] = mapped_column(
         String(500), nullable=False, default="My Private Podcast"
     )
@@ -123,7 +152,7 @@ class PodcastSettings(Base):
         DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow
     )
 
-    __table_args__ = (CheckConstraint("id = 1", name="single_row_settings"),)
+    user: Mapped["User"] = relationship(back_populates="settings")
 
 
 class LogEntry(Base):

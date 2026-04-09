@@ -18,7 +18,7 @@ class TestEncode:
                 from podcast.services.encoder import _encode
 
                 with pytest.raises(FileNotFoundError, match="WAV file not found"):
-                    _encode(episode_id)
+                    _encode(episode_id, "/tmp/audio")
 
     def test_successful_encode(self):
         episode_id = uuid.uuid4()
@@ -39,7 +39,7 @@ class TestEncode:
 
                                     from podcast.services.encoder import _encode
 
-                                    filename, duration, size = _encode(episode_id)
+                                    filename, duration, size = _encode(episode_id, "/tmp/audio")
 
         assert filename == f"{episode_id}.mp3"
         assert duration == 120
@@ -63,7 +63,7 @@ class TestEncode:
 
                                 from podcast.services.encoder import _encode
 
-                                _encode(episode_id)
+                                _encode(episode_id, "/tmp/audio")
 
         mock_audio.set_channels.assert_called_once_with(1)
         mock_audio.set_frame_rate.assert_called_once_with(44100)
@@ -91,7 +91,7 @@ class TestEncode:
 
                                     from podcast.services.encoder import _encode
 
-                                    _encode(episode_id)
+                                    _encode(episode_id, "/tmp/audio")
 
         mock_remove.assert_called_once()  # WAV removed
         mock_rmtree.assert_called_once()  # Segments dir removed

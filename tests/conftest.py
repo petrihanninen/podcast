@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from podcast.models import Episode, Job, LogEntry, PodcastSettings
+from podcast.models import Episode, Job, LogEntry, PodcastSettings, User
 
 
 # ---------------------------------------------------------------------------
@@ -54,11 +54,29 @@ def make_mock_get_session(db_mock):
 # ---------------------------------------------------------------------------
 
 
+def make_user(**overrides) -> MagicMock:
+    """Create a mock User with sensible defaults."""
+    defaults = {
+        "id": uuid.uuid4(),
+        "shoo_sub": "test-sub-" + uuid.uuid4().hex[:8],
+        "enabled": True,
+        "is_admin": False,
+        "feed_token": "test-feed-token-" + uuid.uuid4().hex[:8],
+        "created_at": datetime.now(timezone.utc),
+    }
+    defaults.update(overrides)
+    user = MagicMock(spec=User)
+    for k, v in defaults.items():
+        setattr(user, k, v)
+    return user
+
+
 def make_episode(**overrides) -> MagicMock:
     """Create a mock Episode with sensible defaults."""
     now = datetime.now(timezone.utc)
     defaults = {
         "id": uuid.uuid4(),
+        "user_id": uuid.uuid4(),
         "title": "Test Episode",
         "description": "A test episode",
         "topic": "Test Topic",
@@ -112,7 +130,8 @@ def make_job(**overrides) -> MagicMock:
 def make_settings(**overrides) -> MagicMock:
     """Create a mock PodcastSettings with sensible defaults."""
     defaults = {
-        "id": 1,
+        "id": uuid.uuid4(),
+        "user_id": uuid.uuid4(),
         "title": "My Podcast",
         "description": "A test podcast",
         "author": "Test Author",

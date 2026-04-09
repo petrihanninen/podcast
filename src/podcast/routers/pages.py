@@ -8,9 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from podcast.auth import require_auth_page
+from podcast.auth import require_admin_page, require_auth_page
 from podcast.database import get_db
-from podcast.models import Episode, PodcastSettings
+from podcast.models import Episode, PodcastSettings, User
 from podcast.services.episode import create_episode, get_episode, list_episodes
 from podcast.services.tts import get_tts_progress as _read_tts_progress
 from podcast.services.llm_providers import get_all_model_pricing
@@ -158,20 +158,20 @@ async def shoo_callback(request: Request):
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request, db: AsyncSession = Depends(get_db)):
-    episodes = await list_episodes(db)
+async def index(request: Request, db: AsyncSession = Depends(get_db), user: User = Depends(require_auth_page)):
+    episodes = await list_episodes(db, user.id)
     return templates.TemplateResponse(
-        request, "index.html", context={"episodes": episodes}
+        request, "index.html", context={"episodes": episodes, "user": user}
     )
 
 
 @router.get("/episodes/new", response_class=HTMLResponse)
-async def new_episode_page(request: Request, _user: str = Depends(require_auth_page)):
-    return templates.TemplateResponse(request, "episode_new.html")
+async def new_episode_page(request: Request, user: User = Depends(require_auth_page)):
+    return templates.TemplateResponse(request, "episode_new.html", context={"user": user})
 
 
 @router.post("/episodes/new")
-async def new_episode_submit(request: Request, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth_page)):
+async def new_episode_submit(request: Request, db: AsyncSession = Depends(get_db), user: User = Depends(require_auth_page)):
     form = await request.form()
     topic = form.get("topic", "").strip()
     title = form.get("title", "").strip() or None
@@ -188,11 +188,12 @@ async def new_episode_submit(request: Request, db: AsyncSession = Depends(get_db
         return templates.TemplateResponse(
             request,
             "episode_new.html",
-            context={"error": "Topic is required"},
+            context={"error": "Topic is required", "user": user},
         )
     episode = await create_episode(
         db, topic, title,
         target_length_minutes=target_length,
+        user_id=user.id,
     )
     await db.commit()
     return RedirectResponse(url=f"/episodes/{episode.id}", status_code=303)
@@ -201,32 +202,35 @@ async def new_episode_submit(request: Request, db: AsyncSession = Depends(get_db
 @router.get("/episodes/{episode_id}", response_class=HTMLResponse)
 async def episode_detail(
     request: Request, episode_id: uuid.UUID, db: AsyncSession = Depends(get_db),
-    _user: str = Depends(require_auth_page),
+    user: User = Depends(require_auth_page),
 ):
-    episode = await get_episode(db, episode_id)
+    episode = await get_episode(db, episode_id, user.id)
     if not episode:
         return HTMLResponse("Not found", status_code=404)
     return templates.TemplateResponse(
-        request, "episode_detail.html", context={"episode": episode}
+        request, "episode_detail.html", context={"episode": episode, "user": user}
     )
 
 
 @router.get("/logs", response_class=HTMLResponse)
-async def logs_page(request: Request, _user: str = Depends(require_auth_page)):
-    return templates.TemplateResponse(request, "logs.html")
+async def logs_page(request: Request, user: User = Depends(require_admin_page)):
+    return templates.TemplateResponse(request, "logs.html", context={"user": user})
 
 
 @router.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth_page)):
+async def settings_page(request: Request, db: AsyncSession = Depends(get_db), user: User = Depends(require_auth_page)):
     from podcast.services.transcript import DEFAULT_TONE_NOTES
 
-    s = await db.get(PodcastSettings, 1)
+    result = await db.execute(
+        select(PodcastSettings).where(PodcastSettings.user_id == user.id)
+    )
+    s = result.scalar_one_or_none()
     if not s:
-        s = PodcastSettings()
+        s = PodcastSettings(user_id=user.id)
         db.add(s)
         await db.flush()
 
-    # Parse stored tone notes (JSON string → list), fall back to defaults
+    # Parse stored tone notes (JSON string -> list), fall back to defaults
     tone_notes = list(DEFAULT_TONE_NOTES)
     if s.transcript_tone_notes:
         try:
@@ -237,16 +241,19 @@ async def settings_page(request: Request, db: AsyncSession = Depends(get_db), _u
             pass
 
     return templates.TemplateResponse(
-        request, "settings.html", context={"settings": s, "tone_notes": tone_notes}
+        request, "settings.html", context={"settings": s, "tone_notes": tone_notes, "user": user}
     )
 
 
 @router.post("/settings")
-async def settings_submit(request: Request, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth_page)):
+async def settings_submit(request: Request, db: AsyncSession = Depends(get_db), user: User = Depends(require_auth_page)):
     form = await request.form()
-    s = await db.get(PodcastSettings, 1)
+    result = await db.execute(
+        select(PodcastSettings).where(PodcastSettings.user_id == user.id)
+    )
+    s = result.scalar_one_or_none()
     if not s:
-        s = PodcastSettings()
+        s = PodcastSettings(user_id=user.id)
         db.add(s)
         await db.flush()
 
@@ -264,7 +271,7 @@ def _calc_cost(input_tokens: int, output_tokens: int, model: str = "") -> float:
 
 
 @router.get("/metrics", response_class=HTMLResponse)
-async def metrics_page(request: Request, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth_page)):
+async def metrics_page(request: Request, db: AsyncSession = Depends(get_db), user: User = Depends(require_admin_page)):
     result = await db.execute(
         select(Episode)
         .options(selectinload(Episode.jobs))
@@ -350,5 +357,5 @@ async def metrics_page(request: Request, db: AsyncSession = Depends(get_db), _us
         episode_rows.append(row)
 
     return templates.TemplateResponse(
-        request, "metrics.html", context={"totals": totals, "episodes": episode_rows}
+        request, "metrics.html", context={"totals": totals, "episodes": episode_rows, "user": user}
     )

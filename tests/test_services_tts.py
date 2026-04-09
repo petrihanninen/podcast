@@ -80,16 +80,15 @@ class TestSynthesizeSpeech:
         """synthesize_speech should call Modal's generate_tts function."""
         segments = [{"speaker": "Alex", "text": "Hello"}]
         ep = make_episode(transcript=json.dumps(segments))
-        settings = make_settings()
+        settings = make_settings(user_id=ep.user_id)
 
         db = AsyncMock()
-        async def mock_get(model, id_val):
-            from podcast.models import Episode, PodcastSettings
-            if model is Episode or (hasattr(model, '__tablename__') and model.__tablename__ == 'episodes'):
-                return ep
-            return settings
-
-        db.get = AsyncMock(side_effect=mock_get)
+        # db.get() returns the episode
+        db.get = AsyncMock(return_value=ep)
+        # db.execute() returns settings for the user_id query
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = settings
+        db.execute = AsyncMock(return_value=mock_result)
 
         mock_result = {
             "wav_bytes": b"fake audio",

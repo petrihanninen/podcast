@@ -48,12 +48,15 @@ async def create_episode(
     title: str | None = None,
     description: str | None = None,
     target_length_minutes: int = 30,
+    *,
+    user_id: uuid.UUID,
 ) -> Episode:
     """Create a new episode and enqueue the first pipeline job."""
     if not title:
         title = await generate_title_from_topic(topic)
 
     episode = Episode(
+        user_id=user_id,
         title=title,
         topic=topic,
         description=description,
@@ -69,42 +72,44 @@ async def create_episode(
     return episode
 
 
-async def list_episodes(db: AsyncSession) -> list[Episode]:
+async def list_episodes(db: AsyncSession, user_id: uuid.UUID) -> list[Episode]:
     result = await db.execute(
         select(Episode)
+        .where(Episode.user_id == user_id)
         .options(selectinload(Episode.jobs))
         .order_by(Episode.created_at.desc())
     )
     return list(result.scalars().all())
 
 
-async def get_episode(db: AsyncSession, episode_id: uuid.UUID) -> Episode | None:
+async def get_episode(db: AsyncSession, episode_id: uuid.UUID, user_id: uuid.UUID) -> Episode | None:
     result = await db.execute(
         select(Episode)
-        .where(Episode.id == episode_id)
+        .where(Episode.id == episode_id, Episode.user_id == user_id)
         .options(selectinload(Episode.jobs))
     )
     return result.scalar_one_or_none()
 
 
-async def delete_episode(db: AsyncSession, episode_id: uuid.UUID) -> bool:
-    episode = await get_episode(db, episode_id)
+async def delete_episode(db: AsyncSession, episode_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    episode = await get_episode(db, episode_id, user_id)
     if not episode:
         return False
 
     # Clean up audio files (use basename to prevent path traversal)
+    user_audio_dir = os.path.join(settings.audio_dir, str(user_id))
     if episode.audio_filename:
         safe_name = os.path.basename(episode.audio_filename)
-        audio_path = os.path.join(settings.audio_dir, safe_name)
+        audio_path = os.path.join(user_audio_dir, safe_name)
         resolved = os.path.realpath(audio_path)
-        if resolved.startswith(os.path.realpath(settings.audio_dir)):
+        if resolved.startswith(os.path.realpath(user_audio_dir)):
             if os.path.exists(resolved):
                 os.remove(resolved)
         else:
             logger.warning("Refusing to delete file outside audio dir: %s", audio_path)
 
     # Clean up segments directory
-    segments_dir = os.path.join(settings.audio_dir, "segments", str(episode.id))
+    segments_dir = os.path.join(user_audio_dir, "segments", str(episode.id))
     if os.path.isdir(segments_dir):
         import shutil
         shutil.rmtree(segments_dir)
@@ -113,9 +118,9 @@ async def delete_episode(db: AsyncSession, episode_id: uuid.UUID) -> bool:
     return True
 
 
-async def retry_episode(db: AsyncSession, episode_id: uuid.UUID) -> Episode | None:
+async def retry_episode(db: AsyncSession, episode_id: uuid.UUID, user_id: uuid.UUID) -> Episode | None:
     """Retry a failed episode from its failed step."""
-    episode = await get_episode(db, episode_id)
+    episode = await get_episode(db, episode_id, user_id)
     if not episode or episode.status != "failed":
         return None
 
@@ -130,6 +135,9 @@ async def retry_episode(db: AsyncSession, episode_id: uuid.UUID) -> Episode | No
     return episode
 
 
-async def get_next_episode_number(db: AsyncSession) -> int:
-    result = await db.execute(select(func.coalesce(func.max(Episode.episode_number), 0)))
+async def get_next_episode_number(db: AsyncSession, user_id: uuid.UUID) -> int:
+    result = await db.execute(
+        select(func.coalesce(func.max(Episode.episode_number), 0))
+        .where(Episode.user_id == user_id)
+    )
     return result.scalar_one() + 1

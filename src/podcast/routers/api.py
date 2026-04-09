@@ -6,9 +6,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from podcast.auth import require_auth
+from podcast.auth import require_admin, require_auth
 from podcast.database import get_db
-from podcast.models import Episode, LogEntry, PodcastSettings
+from podcast.models import Episode, LogEntry, PodcastSettings, User
 from podcast.schemas import (
     EpisodeCreate,
     EpisodeListItem,
@@ -43,20 +43,21 @@ async def health():
 
 
 @router.post("/episodes", response_model=EpisodeResponse)
-async def create_episode_endpoint(data: EpisodeCreate, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
+async def create_episode_endpoint(data: EpisodeCreate, db: AsyncSession = Depends(get_db), user: User = Depends(require_auth)):
     episode = await create_episode(
         db,
         data.topic,
         data.title,
         data.description,
         target_length_minutes=data.target_length_minutes,
+        user_id=user.id,
     )
     return episode
 
 
 @router.get("/episodes", response_model=list[EpisodeListItem])
-async def list_episodes_endpoint(db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
-    episodes = await list_episodes(db)
+async def list_episodes_endpoint(db: AsyncSession = Depends(get_db), user: User = Depends(require_auth)):
+    episodes = await list_episodes(db, user.id)
     result = []
     for ep in episodes:
         item = EpisodeListItem.model_validate(ep)
@@ -69,8 +70,8 @@ async def list_episodes_endpoint(db: AsyncSession = Depends(get_db), _user: str 
 
 
 @router.get("/episodes/{episode_id}", response_model=EpisodeResponse)
-async def get_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
-    episode = await get_episode(db, episode_id)
+async def get_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: User = Depends(require_auth)):
+    episode = await get_episode(db, episode_id, user.id)
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
     response = EpisodeResponse.model_validate(episode)
@@ -82,16 +83,16 @@ async def get_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends
 
 
 @router.delete("/episodes/{episode_id}")
-async def delete_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
-    deleted = await delete_episode(db, episode_id)
+async def delete_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: User = Depends(require_auth)):
+    deleted = await delete_episode(db, episode_id, user.id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Episode not found")
     return {"status": "deleted"}
 
 
 @router.post("/episodes/{episode_id}/retry", response_model=EpisodeResponse)
-async def retry_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
-    episode = await retry_episode(db, episode_id)
+async def retry_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: User = Depends(require_auth)):
+    episode = await retry_episode(db, episode_id, user.id)
     if not episode:
         raise HTTPException(status_code=400, detail="Episode not found or not in failed state")
     return episode
@@ -100,7 +101,7 @@ async def retry_episode_endpoint(episode_id: uuid.UUID, db: AsyncSession = Depen
 @router.get("/logs", response_model=LogListResponse)
 async def get_logs(
     db: AsyncSession = Depends(get_db),
-    _user: str = Depends(require_auth),
+    _user: User = Depends(require_admin),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=500),
     level: str | None = None,
@@ -139,20 +140,26 @@ async def get_logs(
 
 
 @router.get("/settings", response_model=SettingsResponse)
-async def get_settings(db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
-    s = await db.get(PodcastSettings, 1)
+async def get_settings(db: AsyncSession = Depends(get_db), user: User = Depends(require_auth)):
+    result = await db.execute(
+        select(PodcastSettings).where(PodcastSettings.user_id == user.id)
+    )
+    s = result.scalar_one_or_none()
     if not s:
-        s = PodcastSettings()
+        s = PodcastSettings(user_id=user.id)
         db.add(s)
         await db.flush()
     return s
 
 
 @router.put("/settings", response_model=SettingsResponse)
-async def update_settings(data: SettingsUpdate, db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
-    s = await db.get(PodcastSettings, 1)
+async def update_settings(data: SettingsUpdate, db: AsyncSession = Depends(get_db), user: User = Depends(require_auth)):
+    result = await db.execute(
+        select(PodcastSettings).where(PodcastSettings.user_id == user.id)
+    )
+    s = result.scalar_one_or_none()
     if not s:
-        s = PodcastSettings()
+        s = PodcastSettings(user_id=user.id)
         db.add(s)
         await db.flush()
 
@@ -172,8 +179,8 @@ def _calc_cost(input_tokens: int, output_tokens: int, model: str = "") -> float:
 
 
 @router.get("/metrics")
-async def get_metrics(db: AsyncSession = Depends(get_db), _user: str = Depends(require_auth)):
-    """Aggregate metrics across all episodes."""
+async def get_metrics(db: AsyncSession = Depends(get_db), _user: User = Depends(require_admin)):
+    """Aggregate metrics across all episodes (admin only)."""
     result = await db.execute(
         select(Episode)
         .options(selectinload(Episode.jobs))

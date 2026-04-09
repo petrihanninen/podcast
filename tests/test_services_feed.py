@@ -7,7 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from podcast.services.feed import _format_duration, generate_feed
-from tests.conftest import make_episode, make_settings
+from tests.conftest import make_episode, make_settings, make_user
+
+_TEST_USER_ID = uuid.uuid4()
+_TEST_FEED_TOKEN = "test-feed-token-xyz"
 
 
 class TestFormatDuration:
@@ -43,20 +46,27 @@ class TestFormatDuration:
 
 
 class TestGenerateFeed:
+    def _make_user(self):
+        return make_user(id=_TEST_USER_ID, feed_token=_TEST_FEED_TOKEN)
+
     async def test_empty_feed_with_default_settings(self):
         """Feed with no episodes and default settings should generate valid XML."""
-        settings = make_settings(title="My Private Podcast", description="AI-generated podcast episodes")
+        settings = make_settings(title="My Private Podcast", description="AI-generated podcast episodes", user_id=_TEST_USER_ID)
+        user = self._make_user()
         db = AsyncMock()
-        db.get = AsyncMock(return_value=settings)
-        mock_result = MagicMock()
-        mock_scalars = MagicMock()
-        mock_scalars.all.return_value = []
-        mock_result.scalars.return_value = mock_scalars
-        db.execute = AsyncMock(return_value=mock_result)
+
+        # First execute: settings query; Second execute: episodes query
+        settings_result = MagicMock()
+        settings_result.scalar_one_or_none.return_value = settings
+        episodes_result = MagicMock()
+        episodes_scalars = MagicMock()
+        episodes_scalars.all.return_value = []
+        episodes_result.scalars.return_value = episodes_scalars
+        db.execute = AsyncMock(side_effect=[settings_result, episodes_result])
 
         with patch("podcast.services.feed.settings") as mock_settings:
             mock_settings.base_url = "http://localhost:9001"
-            xml = await generate_feed(db)
+            xml = await generate_feed(db, user)
 
         assert "<?xml" in xml
         assert "<rss" in xml
@@ -69,18 +79,22 @@ class TestGenerateFeed:
             author="Custom Author",
             language="fi",
             image_url="https://example.com/image.jpg",
+            user_id=_TEST_USER_ID,
         )
+        user = self._make_user()
         db = AsyncMock()
-        db.get = AsyncMock(return_value=settings)
-        mock_result = MagicMock()
-        mock_scalars = MagicMock()
-        mock_scalars.all.return_value = []
-        mock_result.scalars.return_value = mock_scalars
-        db.execute = AsyncMock(return_value=mock_result)
+
+        settings_result = MagicMock()
+        settings_result.scalar_one_or_none.return_value = settings
+        episodes_result = MagicMock()
+        episodes_scalars = MagicMock()
+        episodes_scalars.all.return_value = []
+        episodes_result.scalars.return_value = episodes_scalars
+        db.execute = AsyncMock(side_effect=[settings_result, episodes_result])
 
         with patch("podcast.services.feed.settings") as mock_settings:
             mock_settings.base_url = "https://podcast.example.com"
-            xml = await generate_feed(db)
+            xml = await generate_feed(db, user)
 
         assert "Custom Podcast" in xml
         assert "Custom Author" in xml
@@ -97,20 +111,24 @@ class TestGenerateFeed:
             audio_duration_seconds=600,
             episode_number=1,
             published_at=now,
+            user_id=_TEST_USER_ID,
         )
 
-        settings = make_settings()
+        settings = make_settings(user_id=_TEST_USER_ID)
+        user = self._make_user()
         db = AsyncMock()
-        db.get = AsyncMock(return_value=settings)
-        mock_result = MagicMock()
-        mock_scalars = MagicMock()
-        mock_scalars.all.return_value = [ep]
-        mock_result.scalars.return_value = mock_scalars
-        db.execute = AsyncMock(return_value=mock_result)
+
+        settings_result = MagicMock()
+        settings_result.scalar_one_or_none.return_value = settings
+        episodes_result = MagicMock()
+        episodes_scalars = MagicMock()
+        episodes_scalars.all.return_value = [ep]
+        episodes_result.scalars.return_value = episodes_scalars
+        db.execute = AsyncMock(side_effect=[settings_result, episodes_result])
 
         with patch("podcast.services.feed.settings") as mock_settings:
             mock_settings.base_url = "http://localhost:9001"
-            xml = await generate_feed(db)
+            xml = await generate_feed(db, user)
 
         assert "Test Episode" in xml
         assert "ep1.mp3" in xml
@@ -126,19 +144,23 @@ class TestGenerateFeed:
             audio_filename="ep.mp3",
             audio_size_bytes=100,
             published_at=now,
+            user_id=_TEST_USER_ID,
         )
 
+        user = self._make_user()
         db = AsyncMock()
-        db.get = AsyncMock(return_value=make_settings())
-        mock_result = MagicMock()
-        mock_scalars = MagicMock()
-        mock_scalars.all.return_value = [ep]
-        mock_result.scalars.return_value = mock_scalars
-        db.execute = AsyncMock(return_value=mock_result)
+
+        settings_result = MagicMock()
+        settings_result.scalar_one_or_none.return_value = make_settings(user_id=_TEST_USER_ID)
+        episodes_result = MagicMock()
+        episodes_scalars = MagicMock()
+        episodes_scalars.all.return_value = [ep]
+        episodes_result.scalars.return_value = episodes_scalars
+        db.execute = AsyncMock(side_effect=[settings_result, episodes_result])
 
         with patch("podcast.services.feed.settings") as mock_settings:
             mock_settings.base_url = "http://localhost:9001"
-            xml = await generate_feed(db)
+            xml = await generate_feed(db, user)
 
         assert "Fallback topic" in xml
 
@@ -151,18 +173,22 @@ class TestGenerateFeed:
             audio_filename=f"{ep_id}.mp3",
             audio_size_bytes=500,
             published_at=now,
+            user_id=_TEST_USER_ID,
         )
 
+        user = self._make_user()
         db = AsyncMock()
-        db.get = AsyncMock(return_value=make_settings())
-        mock_result = MagicMock()
-        mock_scalars = MagicMock()
-        mock_scalars.all.return_value = [ep]
-        mock_result.scalars.return_value = mock_scalars
-        db.execute = AsyncMock(return_value=mock_result)
+
+        settings_result = MagicMock()
+        settings_result.scalar_one_or_none.return_value = make_settings(user_id=_TEST_USER_ID)
+        episodes_result = MagicMock()
+        episodes_scalars = MagicMock()
+        episodes_scalars.all.return_value = [ep]
+        episodes_result.scalars.return_value = episodes_scalars
+        db.execute = AsyncMock(side_effect=[settings_result, episodes_result])
 
         with patch("podcast.services.feed.settings") as mock_settings:
             mock_settings.base_url = "https://my.podcast.com"
-            xml = await generate_feed(db)
+            xml = await generate_feed(db, user)
 
-        assert f"https://my.podcast.com/audio/{ep_id}.mp3" in xml
+        assert f"https://my.podcast.com/audio/{_TEST_USER_ID}/{ep_id}.mp3" in xml

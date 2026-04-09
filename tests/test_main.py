@@ -90,7 +90,7 @@ class TestAppImport:
                     # Verify routes exist
                     route_paths = [r.path for r in podcast.main.app.routes]
                     assert "/api/health" in route_paths
-                    assert "/feed.xml" in route_paths
+                    assert "/feed/{feed_token}.xml" in route_paths
 
                     # Verify from_json is registered as a filter
                     result = podcast.main.from_json('[{"a":1}]')

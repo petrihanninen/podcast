@@ -14,15 +14,14 @@ def _setup_db(episode, settings=None):
     """Build a mock session for transcript tests."""
     db = AsyncMock()
 
-    async def mock_get(model, id_val):
-        from podcast.models import Episode, PodcastSettings
-        if model is Episode or (hasattr(model, '__tablename__') and model.__tablename__ == 'episodes'):
-            return episode
-        if model is PodcastSettings or id_val == 1:
-            return settings
-        return None
+    # db.get() is used to load the episode by ID
+    db.get = AsyncMock(return_value=episode)
 
-    db.get = AsyncMock(side_effect=mock_get)
+    # db.execute() is used for the settings query (select where user_id=...)
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = settings
+    db.execute = AsyncMock(return_value=mock_result)
+
     return db
 
 

@@ -95,12 +95,17 @@ def _parse_json_with_repair(text: str) -> list:
 async def generate_transcript(episode_id: uuid.UUID) -> dict:
     """Generate a two-host conversational transcript using the configured LLM. Returns metrics dict."""
     # Read episode data and settings
+    from sqlalchemy import select as sa_select
+
     async with get_session() as db:
         episode = await db.get(Episode, episode_id)
         if not episode:
             raise ValueError(f"Episode {episode_id} not found")
 
-        podcast_settings = await db.get(PodcastSettings, 1)
+        result = await db.execute(
+            sa_select(PodcastSettings).where(PodcastSettings.user_id == episode.user_id)
+        )
+        podcast_settings = result.scalar_one_or_none()
         host_a = podcast_settings.host_a_name if podcast_settings else "Alex"
         host_b = podcast_settings.host_b_name if podcast_settings else "Sam"
         topic = episode.topic

@@ -45,14 +45,23 @@
     <ul class="nav__links">
       <li><a href="/" class="nav__link">Episodes</a></li>
       <li><a href="/episodes/new" class="nav__link">New</a></li>
-      <li><button id="copy-rss" class="nav__link" style="background:none;border:none;cursor:pointer;font:inherit;padding:inherit;">RSS</button></li>
+      {% if user is defined and user %}
+      <li><button id="copy-rss" class="nav__link" style="background:none;border:none;cursor:pointer;font:inherit;padding:inherit;" data-feed-token="{{ user.feed_token }}">RSS</button></li>
+      {% endif %}
       <li><a href="/settings" class="nav__link">Settings</a></li>
+      {% if user is defined and user and user.is_admin %}
       <li><a href="/metrics" class="nav__link">Metrics</a></li>
       <li><a href="/logs" class="nav__link">Logs</a></li>
+      {% endif %}
       <li>
         <button class="theme-toggle" aria-label="Toggle theme">
           <span class="theme-toggle__icon"></span>
         </button>
+      </li>
+      <li>
+        <form action="/auth/logout" method="post" style="display:inline;">
+          <button type="submit" class="nav__link" style="background:none;border:none;cursor:pointer;font:inherit;padding:inherit;">Logout</button>
+        </form>
       </li>
     </ul>
   </nav>
@@ -66,16 +75,22 @@
   <script src="https://shoo.dev/shoo.js"></script>
   <div class="toast" id="toast"></div>
   <script>
-    document.getElementById('copy-rss').addEventListener('click', function() {
-      var url = location.origin + '/feed.xml';
-      navigator.clipboard.writeText(url).then(function() {
-        var toast = document.getElementById('toast');
-        toast.textContent = 'RSS feed URL copied to clipboard';
-        toast.classList.add('show');
-        clearTimeout(toast._tid);
-        toast._tid = setTimeout(function() { toast.classList.remove('show'); }, 2000);
-      });
-    });
+    (function() {
+      var btn = document.getElementById('copy-rss');
+      if (btn) {
+        btn.addEventListener('click', function() {
+          var token = this.getAttribute('data-feed-token');
+          var url = location.origin + '/feed/' + token + '.xml';
+          navigator.clipboard.writeText(url).then(function() {
+            var toast = document.getElementById('toast');
+            toast.textContent = 'RSS feed URL copied to clipboard';
+            toast.classList.add('show');
+            clearTimeout(toast._tid);
+            toast._tid = setTimeout(function() { toast.classList.remove('show'); }, 2000);
+          });
+        });
+      }
+    })();
   </script>
   {% block scripts %}{% endblock %}
 </body>

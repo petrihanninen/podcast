@@ -73,16 +73,22 @@ async def synthesize_speech(episode_id: uuid.UUID) -> dict:
 
     Returns metrics dict with generation stats.
     """
+    from sqlalchemy import select as sa_select
+
     # Read data from DB
     async with get_session() as db:
         episode = await db.get(Episode, episode_id)
         if not episode or not episode.transcript:
             raise ValueError(f"Episode {episode_id} not found or has no transcript")
 
-        podcast_settings = await db.get(PodcastSettings, 1)
+        result = await db.execute(
+            sa_select(PodcastSettings).where(PodcastSettings.user_id == episode.user_id)
+        )
+        podcast_settings = result.scalar_one_or_none()
         host_a = podcast_settings.host_a_name if podcast_settings else "Alex"
         voice_ref_a = podcast_settings.voice_ref_a_path if podcast_settings else None
         voice_ref_b = podcast_settings.voice_ref_b_path if podcast_settings else None
+        user_id = episode.user_id
         segments = json.loads(episode.transcript)
 
     logger.info("Synthesizing %d segments for episode %s", len(segments), episode_id)
@@ -104,9 +110,10 @@ async def synthesize_speech(episode_id: uuid.UUID) -> dict:
         logger.error("Modal TTS call failed: %s", e)
         raise
 
-    # Write WAV bytes to disk
-    output_wav = os.path.join(settings.audio_dir, f"{episode_id}.wav")
-    os.makedirs(settings.audio_dir, exist_ok=True)
+    # Write WAV bytes to disk (namespaced per user)
+    user_audio_dir = os.path.join(settings.audio_dir, str(user_id))
+    output_wav = os.path.join(user_audio_dir, f"{episode_id}.wav")
+    os.makedirs(user_audio_dir, exist_ok=True)
     with open(output_wav, "wb") as f:
         f.write(result["wav_bytes"])
     logger.info("Wrote audio file: %s", output_wav)

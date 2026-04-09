@@ -15,14 +15,14 @@ from podcast.models import Episode
 logger = logging.getLogger(__name__)
 
 
-def _encode(episode_id: uuid.UUID) -> tuple[str, int, int]:
+def _encode(episode_id: uuid.UUID, audio_dir: str) -> tuple[str, int, int]:
     """Synchronous MP3 encoding — returns (filename, duration_seconds, file_size)."""
-    wav_path = os.path.join(settings.audio_dir, f"{episode_id}.wav")
+    wav_path = os.path.join(audio_dir, f"{episode_id}.wav")
     if not os.path.exists(wav_path):
         raise FileNotFoundError(f"WAV file not found: {wav_path}")
 
     mp3_filename = f"{episode_id}.mp3"
-    mp3_path = os.path.join(settings.audio_dir, mp3_filename)
+    mp3_path = os.path.join(audio_dir, mp3_filename)
 
     logger.info("Encoding MP3 for episode %s", episode_id)
 
@@ -37,7 +37,7 @@ def _encode(episode_id: uuid.UUID) -> tuple[str, int, int]:
 
     # Clean up WAV and segments
     os.remove(wav_path)
-    segments_dir = os.path.join(settings.audio_dir, "segments", str(episode_id))
+    segments_dir = os.path.join(audio_dir, "segments", str(episode_id))
     if os.path.isdir(segments_dir):
         shutil.rmtree(segments_dir)
 
@@ -46,10 +46,19 @@ def _encode(episode_id: uuid.UUID) -> tuple[str, int, int]:
 
 async def encode_mp3(episode_id: uuid.UUID) -> dict:
     """Convert WAV to MP3 and update episode metadata. Returns metrics dict."""
+    # Look up user_id to determine audio directory
+    async with get_session() as db:
+        episode = await db.get(Episode, episode_id)
+        if not episode:
+            raise ValueError(f"Episode {episode_id} not found")
+        user_id = episode.user_id
+
+    user_audio_dir = os.path.join(settings.audio_dir, str(user_id))
+
     # Run encoding in a thread
     t0 = time.monotonic()
     mp3_filename, duration_seconds, file_size = await asyncio.to_thread(
-        _encode, episode_id
+        _encode, episode_id, user_audio_dir
     )
     encode_duration = time.monotonic() - t0
 
@@ -59,9 +68,10 @@ async def encode_mp3(episode_id: uuid.UUID) -> dict:
         if not episode:
             raise ValueError(f"Episode {episode_id} not found")
 
-        # Get next episode number
+        # Get next episode number (scoped per user)
         result = await db.execute(
             select(func.coalesce(func.max(Episode.episode_number), 0))
+            .where(Episode.user_id == user_id)
         )
         next_number = result.scalar_one() + 1
 

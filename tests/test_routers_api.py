@@ -10,27 +10,34 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from podcast.routers.api import _calc_cost, router
-from tests.conftest import make_episode, make_job, make_log_entry, make_settings
+from tests.conftest import make_episode, make_job, make_log_entry, make_settings, make_user
 
 
 # ---------------------------------------------------------------------------
 # Test app setup
 # ---------------------------------------------------------------------------
 
+_TEST_USER_ID = uuid.uuid4()
+_TEST_USER = make_user(id=_TEST_USER_ID)
+_ADMIN_USER = make_user(id=uuid.uuid4(), is_admin=True)
 
-def _make_test_client(db_mock):
-    """Create a FastAPI TestClient with overridden DB dependency."""
+
+def _make_test_client(db_mock, *, admin=False):
+    """Create a FastAPI TestClient with overridden DB and auth dependencies."""
     app = FastAPI()
     app.include_router(router)
 
     async def override_get_db():
         yield db_mock
 
+    user = _ADMIN_USER if admin else _TEST_USER
+
     from podcast.database import get_db
-    from podcast.auth import require_auth
+    from podcast.auth import require_auth, require_admin
 
     app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[require_auth] = lambda: "test-user"
+    app.dependency_overrides[require_auth] = lambda: user
+    app.dependency_overrides[require_admin] = lambda: user
     return TestClient(app)
 
 
@@ -95,7 +102,7 @@ class TestGetModelsEndpoint:
 class TestCreateEpisodeEndpoint:
     def test_creates_episode(self):
         db = AsyncMock()
-        ep = make_episode(title="My Episode", topic="Test topic", status="pending")
+        ep = make_episode(title="My Episode", topic="Test topic", status="pending", user_id=_TEST_USER_ID)
 
         with patch("podcast.routers.api.create_episode", new_callable=AsyncMock) as mock_create:
             mock_create.return_value = ep
@@ -110,6 +117,9 @@ class TestCreateEpisodeEndpoint:
         assert data["title"] == "My Episode"
         assert data["topic"] == "Test topic"
         assert data["status"] == "pending"
+        # Verify user_id was passed
+        mock_create.assert_awaited_once()
+        assert mock_create.call_args[1]["user_id"] == _TEST_USER_ID
 
     def test_creates_episode_with_model_selections(self):
         db = AsyncMock()
@@ -118,7 +128,8 @@ class TestCreateEpisodeEndpoint:
             topic="Test topic",
             status="pending",
             research_model="gemini-flash",
-            transcript_model="deepseek"
+            transcript_model="deepseek",
+            user_id=_TEST_USER_ID,
         )
 
         with patch("podcast.routers.api.create_episode", new_callable=AsyncMock) as mock_create:
@@ -147,7 +158,7 @@ class TestCreateEpisodeEndpoint:
 
     def test_auto_title(self):
         db = AsyncMock()
-        ep = make_episode(title="Some topic", topic="Some topic", status="pending")
+        ep = make_episode(title="Some topic", topic="Some topic", status="pending", user_id=_TEST_USER_ID)
 
         with patch("podcast.routers.api.create_episode", new_callable=AsyncMock) as mock_create:
             mock_create.return_value = ep
@@ -162,7 +173,7 @@ class TestCreateEpisodeEndpoint:
 
 class TestListEpisodesEndpoint:
     def test_returns_episode_list(self):
-        ep = make_episode(title="Listed Episode")
+        ep = make_episode(title="Listed Episode", user_id=_TEST_USER_ID)
 
         with patch("podcast.routers.api.list_episodes", new_callable=AsyncMock) as mock_list:
             mock_list.return_value = [ep]
@@ -174,6 +185,8 @@ class TestListEpisodesEndpoint:
         data = response.json()
         assert len(data) == 1
         assert data[0]["title"] == "Listed Episode"
+        # Verify user_id was passed
+        mock_list.assert_awaited_once_with(db, _TEST_USER_ID)
 
     def test_returns_empty_list(self):
         with patch("podcast.routers.api.list_episodes", new_callable=AsyncMock) as mock_list:
@@ -188,7 +201,7 @@ class TestListEpisodesEndpoint:
 class TestGetEpisodeEndpoint:
     def test_returns_episode(self):
         ep_id = uuid.uuid4()
-        ep = make_episode(id=ep_id, title="Detail Episode")
+        ep = make_episode(id=ep_id, title="Detail Episode", user_id=_TEST_USER_ID)
 
         with patch("podcast.routers.api.get_episode", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = ep
@@ -229,7 +242,7 @@ class TestDeleteEpisodeEndpoint:
 
 class TestRetryEpisodeEndpoint:
     def test_successful_retry(self):
-        ep = make_episode(status="pending", failed_step=None, error_message=None)
+        ep = make_episode(status="pending", failed_step=None, error_message=None, user_id=_TEST_USER_ID)
 
         with patch("podcast.routers.api.retry_episode", new_callable=AsyncMock) as mock_retry:
             mock_retry.return_value = ep
@@ -255,9 +268,11 @@ class TestRetryEpisodeEndpoint:
 
 class TestGetSettingsEndpoint:
     def test_returns_existing_settings(self):
-        settings = make_settings(title="My Podcast")
+        settings = make_settings(title="My Podcast", user_id=_TEST_USER_ID)
         db = AsyncMock()
-        db.get = AsyncMock(return_value=settings)
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = settings
+        db.execute = AsyncMock(return_value=mock_result)
 
         client = _make_test_client(db)
         response = client.get("/api/settings")
@@ -268,7 +283,9 @@ class TestGetSettingsEndpoint:
     def test_creates_default_settings_if_none(self):
         """When no settings exist, the endpoint creates a default PodcastSettings."""
         db = AsyncMock()
-        db.get = AsyncMock(return_value=None)
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=mock_result)
         added = []
         db.add = lambda obj: added.append(obj)
 
@@ -294,9 +311,11 @@ class TestGetSettingsEndpoint:
 
 class TestUpdateSettingsEndpoint:
     def test_updates_settings(self):
-        settings = make_settings(title="Old Title")
+        settings = make_settings(title="Old Title", user_id=_TEST_USER_ID)
         db = AsyncMock()
-        db.get = AsyncMock(return_value=settings)
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = settings
+        db.execute = AsyncMock(return_value=mock_result)
 
         client = _make_test_client(db)
         response = client.put("/api/settings", json={"title": "New Title"})
@@ -305,9 +324,11 @@ class TestUpdateSettingsEndpoint:
         assert settings.title == "New Title"
 
     def test_partial_update(self):
-        settings = make_settings(title="Original", author="Original Author")
+        settings = make_settings(title="Original", author="Original Author", user_id=_TEST_USER_ID)
         db = AsyncMock()
-        db.get = AsyncMock(return_value=settings)
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = settings
+        db.execute = AsyncMock(return_value=mock_result)
 
         client = _make_test_client(db)
         response = client.put("/api/settings", json={"author": "New Author"})
@@ -319,7 +340,7 @@ class TestUpdateSettingsEndpoint:
 
 
 # ---------------------------------------------------------------------------
-# Logs
+# Logs (admin only)
 # ---------------------------------------------------------------------------
 
 
@@ -337,7 +358,7 @@ class TestGetLogsEndpoint:
 
         db.execute = AsyncMock(side_effect=[log_result, count_result])
 
-        client = _make_test_client(db)
+        client = _make_test_client(db, admin=True)
         response = client.get("/api/logs")
 
         assert response.status_code == 200
@@ -357,7 +378,7 @@ class TestGetLogsEndpoint:
 
         db.execute = AsyncMock(side_effect=[log_result, count_result])
 
-        client = _make_test_client(db)
+        client = _make_test_client(db, admin=True)
         response = client.get("/api/logs?page=1&page_size=100")
 
         assert response.status_code == 200
@@ -390,7 +411,7 @@ class TestCalcCost:
 
 
 # ---------------------------------------------------------------------------
-# Metrics endpoint
+# Metrics endpoint (admin only)
 # ---------------------------------------------------------------------------
 
 
@@ -403,7 +424,7 @@ class TestMetricsEndpoint:
         mock_result.scalars.return_value = mock_scalars
         db.execute = AsyncMock(return_value=mock_result)
 
-        client = _make_test_client(db)
+        client = _make_test_client(db, admin=True)
         response = client.get("/api/metrics")
 
         assert response.status_code == 200
@@ -433,7 +454,7 @@ class TestMetricsEndpoint:
         mock_result.scalars.return_value = mock_scalars
         db.execute = AsyncMock(return_value=mock_result)
 
-        client = _make_test_client(db)
+        client = _make_test_client(db, admin=True)
         response = client.get("/api/metrics")
 
         assert response.status_code == 200
@@ -462,7 +483,7 @@ class TestMetricsEndpoint:
         mock_result.scalars.return_value = mock_scalars
         db.execute = AsyncMock(return_value=mock_result)
 
-        client = _make_test_client(db)
+        client = _make_test_client(db, admin=True)
         response = client.get("/api/metrics")
 
         data = response.json()

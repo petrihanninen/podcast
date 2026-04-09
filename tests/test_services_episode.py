@@ -17,6 +17,8 @@ from podcast.services.episode import (
 )
 from tests.conftest import make_episode, make_job
 
+_TEST_USER_ID = uuid.uuid4()
+
 
 def _mock_openai_title(title_text="Generated Title"):
     """Return a patch context for generate_title_from_topic's OpenAI call."""
@@ -41,13 +43,14 @@ class TestCreateEpisode:
         added = []
         db.add = lambda obj: added.append(obj)
 
-        episode = await create_episode(db, "Test topic", "My Title", "My desc")
+        episode = await create_episode(db, "Test topic", "My Title", "My desc", user_id=_TEST_USER_ID)
 
         assert isinstance(episode, Episode)
         assert episode.title == "My Title"
         assert episode.topic == "Test topic"
         assert episode.description == "My desc"
         assert episode.status == "pending"
+        assert episode.user_id == _TEST_USER_ID
         db.flush.assert_awaited_once()
 
     async def test_creates_episode_with_model_selections(self):
@@ -61,7 +64,8 @@ class TestCreateEpisode:
             "My Title",
             "My desc",
             research_model="gemini-flash",
-            transcript_model="deepseek"
+            transcript_model="deepseek",
+            user_id=_TEST_USER_ID,
         )
 
         assert isinstance(episode, Episode)
@@ -74,7 +78,7 @@ class TestCreateEpisode:
         db.add = lambda obj: added.append(obj)
 
         with _mock_openai_title():
-            await create_episode(db, "Topic")
+            await create_episode(db, "Topic", user_id=_TEST_USER_ID)
 
         jobs = [o for o in added if isinstance(o, Job)]
         assert len(jobs) == 1
@@ -86,7 +90,7 @@ class TestCreateEpisode:
         db.add = MagicMock()
 
         with _mock_openai_title("Short topic"):
-            episode = await create_episode(db, "Short topic")
+            episode = await create_episode(db, "Short topic", user_id=_TEST_USER_ID)
         assert episode.title == "Short topic"
 
     async def test_auto_title_truncation(self):
@@ -95,7 +99,7 @@ class TestCreateEpisode:
 
         long_topic = "x" * 200
         with _mock_openai_title(long_topic[:200]):
-            episode = await create_episode(db, long_topic)
+            episode = await create_episode(db, long_topic, user_id=_TEST_USER_ID)
         assert len(episode.title) <= 200
 
     async def test_none_title_uses_topic(self):
@@ -103,7 +107,7 @@ class TestCreateEpisode:
         db.add = MagicMock()
 
         with _mock_openai_title("My topic"):
-            episode = await create_episode(db, "My topic", title=None)
+            episode = await create_episode(db, "My topic", title=None, user_id=_TEST_USER_ID)
         assert episode.title == "My topic"
 
     async def test_empty_string_title_uses_topic(self):
@@ -111,7 +115,7 @@ class TestCreateEpisode:
         db.add = MagicMock()
 
         with _mock_openai_title("My topic"):
-            episode = await create_episode(db, "My topic", title="")
+            episode = await create_episode(db, "My topic", title="", user_id=_TEST_USER_ID)
         assert episode.title == "My topic"
 
 
@@ -120,13 +124,13 @@ class TestListEpisodes:
         db = AsyncMock()
         mock_result = MagicMock()
         mock_scalars = MagicMock()
-        ep1 = make_episode(title="Ep 1")
-        ep2 = make_episode(title="Ep 2")
+        ep1 = make_episode(title="Ep 1", user_id=_TEST_USER_ID)
+        ep2 = make_episode(title="Ep 2", user_id=_TEST_USER_ID)
         mock_scalars.all.return_value = [ep1, ep2]
         mock_result.scalars.return_value = mock_scalars
         db.execute = AsyncMock(return_value=mock_result)
 
-        result = await list_episodes(db)
+        result = await list_episodes(db, _TEST_USER_ID)
 
         assert len(result) == 2
         assert result[0].title == "Ep 1"
@@ -140,19 +144,19 @@ class TestListEpisodes:
         mock_result.scalars.return_value = mock_scalars
         db.execute = AsyncMock(return_value=mock_result)
 
-        result = await list_episodes(db)
+        result = await list_episodes(db, _TEST_USER_ID)
         assert result == []
 
 
 class TestGetEpisode:
     async def test_found(self):
-        ep = make_episode(title="Found Episode")
+        ep = make_episode(title="Found Episode", user_id=_TEST_USER_ID)
         db = AsyncMock()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = ep
         db.execute = AsyncMock(return_value=mock_result)
 
-        result = await get_episode(db, ep.id)
+        result = await get_episode(db, ep.id, _TEST_USER_ID)
         assert result is ep
 
     async def test_not_found(self):
@@ -161,13 +165,13 @@ class TestGetEpisode:
         mock_result.scalar_one_or_none.return_value = None
         db.execute = AsyncMock(return_value=mock_result)
 
-        result = await get_episode(db, uuid.uuid4())
+        result = await get_episode(db, uuid.uuid4(), _TEST_USER_ID)
         assert result is None
 
 
 class TestDeleteEpisode:
     async def test_deletes_existing_episode(self):
-        ep = make_episode(audio_filename=None)
+        ep = make_episode(audio_filename=None, user_id=_TEST_USER_ID)
         db = AsyncMock()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = ep
@@ -175,7 +179,7 @@ class TestDeleteEpisode:
 
         with patch("podcast.services.episode.os.path.exists", return_value=False):
             with patch("podcast.services.episode.os.path.isdir", return_value=False):
-                result = await delete_episode(db, ep.id)
+                result = await delete_episode(db, ep.id, _TEST_USER_ID)
 
         assert result is True
         db.delete.assert_awaited_once_with(ep)
@@ -186,11 +190,11 @@ class TestDeleteEpisode:
         mock_result.scalar_one_or_none.return_value = None
         db.execute = AsyncMock(return_value=mock_result)
 
-        result = await delete_episode(db, uuid.uuid4())
+        result = await delete_episode(db, uuid.uuid4(), _TEST_USER_ID)
         assert result is False
 
     async def test_cleans_up_audio_file(self):
-        ep = make_episode(audio_filename="test.mp3")
+        ep = make_episode(audio_filename="test.mp3", user_id=_TEST_USER_ID)
         db = AsyncMock()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = ep
@@ -199,12 +203,12 @@ class TestDeleteEpisode:
         with patch("podcast.services.episode.os.path.exists", return_value=True) as mock_exists:
             with patch("podcast.services.episode.os.remove") as mock_remove:
                 with patch("podcast.services.episode.os.path.isdir", return_value=False):
-                    await delete_episode(db, ep.id)
+                    await delete_episode(db, ep.id, _TEST_USER_ID)
 
         mock_remove.assert_called_once()
 
     async def test_cleans_up_segments_directory(self):
-        ep = make_episode(audio_filename=None)
+        ep = make_episode(audio_filename=None, user_id=_TEST_USER_ID)
         db = AsyncMock()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = ep
@@ -213,14 +217,14 @@ class TestDeleteEpisode:
         with patch("podcast.services.episode.os.path.exists", return_value=False):
             with patch("podcast.services.episode.os.path.isdir", return_value=True):
                 with patch("shutil.rmtree") as mock_rmtree:
-                    await delete_episode(db, ep.id)
+                    await delete_episode(db, ep.id, _TEST_USER_ID)
 
         mock_rmtree.assert_called_once()
 
 
 class TestRetryEpisode:
     async def test_retries_failed_episode(self):
-        ep = make_episode(status="failed", failed_step="tts")
+        ep = make_episode(status="failed", failed_step="tts", user_id=_TEST_USER_ID)
         db = AsyncMock()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = ep
@@ -228,7 +232,7 @@ class TestRetryEpisode:
         added = []
         db.add = lambda obj: added.append(obj)
 
-        result = await retry_episode(db, ep.id)
+        result = await retry_episode(db, ep.id, _TEST_USER_ID)
 
         assert result is ep
         assert ep.status == "pending"
@@ -240,7 +244,7 @@ class TestRetryEpisode:
         assert jobs[0].step == "tts"
 
     async def test_defaults_to_research_step(self):
-        ep = make_episode(status="failed", failed_step=None)
+        ep = make_episode(status="failed", failed_step=None, user_id=_TEST_USER_ID)
         db = AsyncMock()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = ep
@@ -248,19 +252,19 @@ class TestRetryEpisode:
         added = []
         db.add = lambda obj: added.append(obj)
 
-        await retry_episode(db, ep.id)
+        await retry_episode(db, ep.id, _TEST_USER_ID)
 
         jobs = [o for o in added if isinstance(o, Job)]
         assert jobs[0].step == "research"
 
     async def test_returns_none_for_non_failed(self):
-        ep = make_episode(status="ready")
+        ep = make_episode(status="ready", user_id=_TEST_USER_ID)
         db = AsyncMock()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = ep
         db.execute = AsyncMock(return_value=mock_result)
 
-        result = await retry_episode(db, ep.id)
+        result = await retry_episode(db, ep.id, _TEST_USER_ID)
         assert result is None
 
     async def test_returns_none_when_not_found(self):
@@ -269,7 +273,7 @@ class TestRetryEpisode:
         mock_result.scalar_one_or_none.return_value = None
         db.execute = AsyncMock(return_value=mock_result)
 
-        result = await retry_episode(db, uuid.uuid4())
+        result = await retry_episode(db, uuid.uuid4(), _TEST_USER_ID)
         assert result is None
 
 
@@ -280,7 +284,7 @@ class TestGetNextEpisodeNumber:
         mock_result.scalar_one.return_value = 5
         db.execute = AsyncMock(return_value=mock_result)
 
-        result = await get_next_episode_number(db)
+        result = await get_next_episode_number(db, _TEST_USER_ID)
         assert result == 6
 
     async def test_returns_1_when_no_episodes(self):
@@ -289,5 +293,5 @@ class TestGetNextEpisodeNumber:
         mock_result.scalar_one.return_value = 0  # coalesce returns 0
         db.execute = AsyncMock(return_value=mock_result)
 
-        result = await get_next_episode_number(db)
+        result = await get_next_episode_number(db, _TEST_USER_ID)
         assert result == 1

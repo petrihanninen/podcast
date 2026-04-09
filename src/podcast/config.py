@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     voice_refs_dir: str = "/app/voice_refs"
     base_url: str = "http://localhost:9001"
     api_password: str = ""
-    allowed_sub: str = ""
+    register_token: str = ""
     session_secret: str = ""
     daily_spend_limit: float = 5.0  # USD – set DAILY_SPEND_LIMIT env var to override
 

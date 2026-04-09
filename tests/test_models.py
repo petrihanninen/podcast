@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from podcast.models import Base, Episode, Job, LogEntry, PodcastSettings, utcnow
+from podcast.models import Base, Episode, Job, LogEntry, PodcastSettings, User, utcnow
 
 
 class TestUtcnow:
@@ -25,7 +25,7 @@ class TestEpisodeModel:
     def test_has_expected_columns(self):
         col_names = {c.name for c in Episode.__table__.columns}
         expected = {
-            "id", "title", "description", "topic", "status",
+            "id", "user_id", "title", "description", "topic", "status",
             "error_message", "failed_step", "research_notes", "transcript",
             "audio_filename", "audio_duration_seconds", "audio_size_bytes",
             "episode_number", "published_at", "created_at", "updated_at",
@@ -90,12 +90,40 @@ class TestPodcastSettingsModel:
         assert col_a.default.arg == "Alex"
         assert col_b.default.arg == "Sam"
 
-    def test_single_row_constraint(self):
-        constraints = [
-            c for c in PodcastSettings.__table__.constraints
-            if hasattr(c, "name") and c.name == "single_row_settings"
-        ]
-        assert len(constraints) == 1
+    def test_user_id_foreign_key(self):
+        col = PodcastSettings.__table__.columns["user_id"]
+        fk = list(col.foreign_keys)[0]
+        assert fk.target_fullname == "users.id"
+
+    def test_user_id_is_unique(self):
+        col = PodcastSettings.__table__.columns["user_id"]
+        assert col.unique is True
+
+
+class TestUserModel:
+    def test_tablename(self):
+        assert User.__tablename__ == "users"
+
+    def test_has_expected_columns(self):
+        col_names = {c.name for c in User.__table__.columns}
+        expected = {"id", "shoo_sub", "enabled", "is_admin", "feed_token", "created_at"}
+        assert expected.issubset(col_names)
+
+    def test_shoo_sub_is_unique(self):
+        col = User.__table__.columns["shoo_sub"]
+        assert col.unique is True
+
+    def test_feed_token_is_unique(self):
+        col = User.__table__.columns["feed_token"]
+        assert col.unique is True
+
+    def test_enabled_default(self):
+        col = User.__table__.columns["enabled"]
+        assert col.default.arg is True
+
+    def test_is_admin_default(self):
+        col = User.__table__.columns["is_admin"]
+        assert col.default.arg is False
 
 
 class TestLogEntryModel:

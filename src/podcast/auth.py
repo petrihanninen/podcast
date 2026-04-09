@@ -6,15 +6,20 @@ import time
 from urllib.parse import urlparse
 
 import jwt
-from fastapi import Request
+from fastapi import Depends, HTTPException, Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from podcast.config import settings
+from podcast.database import get_db
+from podcast.models import User
 
 # JWKS client for verifying Shoo id_tokens (ES256 signed)
 _jwks_client = jwt.PyJWKClient("https://shoo.dev/.well-known/jwks.json", cache_keys=True)
 
 SESSION_COOKIE = "podcast_session"
 SESSION_MAX_AGE = 30 * 24 * 60 * 60  # 30 days
+REGISTER_COOKIE = "register_token"
 
 
 class RequiresLogin(Exception):
@@ -22,6 +27,11 @@ class RequiresLogin(Exception):
 
     def __init__(self, next_url: str = "/"):
         self.next_url = next_url
+
+
+class RequiresRegistration(Exception):
+    """Raised when a Shoo-authenticated user is not registered in the app."""
+    pass
 
 
 def _get_origin(url: str) -> str:
@@ -87,28 +97,46 @@ def get_current_user(request: Request) -> str | None:
     cookie = request.cookies.get(SESSION_COOKIE)
     if not cookie:
         return None
-    sub = verify_session_cookie(cookie)
+    return verify_session_cookie(cookie)
+
+
+async def require_auth(
+    request: Request, db: AsyncSession = Depends(get_db)
+) -> User:
+    """FastAPI dependency for API routes — raises 401/403 if not authenticated/registered."""
+    sub = get_current_user(request)
     if not sub:
-        return None
-    # If allowed_sub is configured, enforce it
-    if settings.allowed_sub and sub != settings.allowed_sub:
-        return None
-    return sub
-
-
-def require_auth(request: Request) -> str:
-    """FastAPI dependency for API routes — raises 401 if not authenticated."""
-    from fastapi import HTTPException
-
-    user = get_current_user(request)
-    if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    result = await db.execute(select(User).where(User.shoo_sub == sub))
+    user = result.scalar_one_or_none()
+    if not user or not user.enabled:
+        raise HTTPException(status_code=403, detail="Not registered or account disabled")
     return user
 
 
-def require_auth_page(request: Request) -> str:
-    """FastAPI dependency for page routes — redirects to login if not authenticated."""
-    user = get_current_user(request)
-    if not user:
+async def require_auth_page(
+    request: Request, db: AsyncSession = Depends(get_db)
+) -> User:
+    """FastAPI dependency for page routes — redirects to login or shows not-registered page."""
+    sub = get_current_user(request)
+    if not sub:
         raise RequiresLogin(next_url=str(request.url.path))
+    result = await db.execute(select(User).where(User.shoo_sub == sub))
+    user = result.scalar_one_or_none()
+    if not user or not user.enabled:
+        raise RequiresRegistration()
+    return user
+
+
+async def require_admin(user: User = Depends(require_auth)) -> User:
+    """FastAPI dependency for admin-only API routes."""
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
+async def require_admin_page(user: User = Depends(require_auth_page)) -> User:
+    """FastAPI dependency for admin-only page routes."""
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
     return user

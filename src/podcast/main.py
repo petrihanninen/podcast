@@ -7,8 +7,9 @@ from urllib.parse import quote
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
-from podcast.auth import RequiresLogin
+from podcast.auth import RequiresLogin, RequiresRegistration
 from podcast.config import settings
 from podcast.log_handler import setup_logging, start_flush_loop, stop_flush_loop
 from podcast.routers import api, auth, feed, pages
@@ -35,11 +36,22 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Podcast Generator", lifespan=lifespan)
 
 
+_templates = Jinja2Templates(directory="src/podcast/templates")
+
+
 @app.exception_handler(RequiresLogin)
 async def requires_login_handler(request: Request, exc: RequiresLogin):
     """Redirect unauthenticated users to the login page."""
     return RedirectResponse(
         url=f"/auth/login?next={quote(exc.next_url, safe='')}", status_code=303
+    )
+
+
+@app.exception_handler(RequiresRegistration)
+async def requires_registration_handler(request: Request, exc: RequiresRegistration):
+    """Show a 'not registered' page for authenticated but unregistered users."""
+    return _templates.TemplateResponse(
+        request, "not_registered.html", status_code=403
     )
 
 

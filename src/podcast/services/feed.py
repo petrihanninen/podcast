@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from podcast.config import settings
-from podcast.models import Episode, PodcastSettings
+from podcast.models import Episode, PodcastSettings, User
 
 
 def _format_duration(seconds: int) -> str:
@@ -16,11 +16,14 @@ def _format_duration(seconds: int) -> str:
     return f"{minutes}:{secs:02d}"
 
 
-async def generate_feed(db: AsyncSession) -> str:
-    """Generate a podcast-compatible RSS feed."""
-    podcast_settings = await db.get(PodcastSettings, 1)
+async def generate_feed(db: AsyncSession, user: User) -> str:
+    """Generate a podcast-compatible RSS feed for a specific user."""
+    result = await db.execute(
+        select(PodcastSettings).where(PodcastSettings.user_id == user.id)
+    )
+    podcast_settings = result.scalar_one_or_none()
     if not podcast_settings:
-        podcast_settings = PodcastSettings()
+        podcast_settings = PodcastSettings(user_id=user.id)
 
     base = settings.base_url.rstrip("/")
 
@@ -30,7 +33,7 @@ async def generate_feed(db: AsyncSession) -> str:
     # Channel-level metadata
     fg.title(podcast_settings.title)
     fg.description(podcast_settings.description)
-    fg.link(href=f"{base}/feed.xml", rel="self")
+    fg.link(href=f"{base}/feed/{user.feed_token}.xml", rel="self")
     fg.link(href=base, rel="alternate")
     fg.language(podcast_settings.language)
     fg.generator("Podcast Generator")
@@ -44,9 +47,10 @@ async def generate_feed(db: AsyncSession) -> str:
     image_url = podcast_settings.image_url or f"{base}/static/til.png"
     fg.podcast.itunes_image(image_url)
 
-    # Episodes
+    # Episodes (only this user's ready episodes)
     result = await db.execute(
         select(Episode)
+        .where(Episode.user_id == user.id)
         .where(Episode.status == "ready")
         .where(Episode.audio_filename.isnot(None))
         .order_by(Episode.published_at.desc())
@@ -60,7 +64,7 @@ async def generate_feed(db: AsyncSession) -> str:
         fe.description(ep.description or ep.topic)
         fe.published(ep.published_at)
 
-        audio_url = f"{base}/audio/{ep.audio_filename}"
+        audio_url = f"{base}/audio/{user.id}/{ep.audio_filename}"
         fe.enclosure(audio_url, str(ep.audio_size_bytes or 0), "audio/mpeg")
 
         if ep.audio_duration_seconds:
