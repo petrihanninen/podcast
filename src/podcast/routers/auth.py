@@ -91,6 +91,7 @@ async def verify_token(request: Request, db: AsyncSession = Depends(get_db)):
         return JSONResponse({"error": f"Invalid token: {e}"}, status_code=401)
 
     sub = claims["pairwise_sub"]
+    email = claims.get("email")
 
     # Look up existing user
     result = await db.execute(select(User).where(User.shoo_sub == sub))
@@ -99,6 +100,10 @@ async def verify_token(request: Request, db: AsyncSession = Depends(get_db)):
     if user:
         if not user.enabled:
             return JSONResponse({"error": "Account disabled"}, status_code=403)
+        # Update email if Shoo provided one and it changed
+        if email and user.email != email:
+            user.email = email
+            await db.commit()
         # Existing active user — set session and return
         cookie_value = create_session_cookie(sub)
         response = JSONResponse({"ok": True, "sub": sub})
@@ -120,6 +125,7 @@ async def verify_token(request: Request, db: AsyncSession = Depends(get_db)):
 
             new_user = User(
                 shoo_sub=sub,
+                email=email,
                 feed_token=secrets.token_urlsafe(32),
                 is_admin=is_first_user,
             )
