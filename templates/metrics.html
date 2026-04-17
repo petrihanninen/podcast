@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}Metrics — Podcast{% endblock %}
+
+{% block head %}
+<style>
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-4);
+    margin-block-end: var(--space-6);
+  }
+  .stat-card {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4) var(--space-5);
+  }
+  .stat-card__label {
+    font-size: var(--text-overline);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    margin-block-end: var(--space-1);
+  }
+  .stat-card__value {
+    font-family: var(--font-data, var(--font-body));
+    font-size: var(--text-heading);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text);
+  }
+  .stat-card__sub {
+    font-size: var(--text-overline);
+    color: var(--color-text-muted);
+    margin-block-start: var(--space-1);
+  }
+  .section-title {
+    font-family: var(--font-display);
+    font-size: var(--text-subhead);
+    font-weight: 600;
+    margin-block-end: var(--space-4);
+    color: var(--color-text);
+  }
+  .table td.dim {
+    color: var(--color-text-muted);
+  }
+  .table td.mono {
+    font-family: var(--font-data, var(--font-body));
+    font-variant-numeric: tabular-nums;
+  }
+  .step-bar {
+    display: flex;
+    height: 6px;
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    gap: 1px;
+    min-width: 120px;
+  }
+  .step-bar__seg {
+    height: 100%;
+    border-radius: var(--radius-full);
+  }
+  .step-bar__seg--research { background: var(--color-info); }
+  .step-bar__seg--transcript { background: var(--color-accent); }
+  .step-bar__seg--tts { background: var(--color-warning); }
+  .step-bar__seg--encode { background: var(--color-success); }
+  .legend {
+    display: flex;
+    gap: var(--space-4);
+    margin-block-start: var(--space-2);
+    margin-block-end: var(--space-4);
+    font-size: var(--text-overline);
+    color: var(--color-text-muted);
+  }
+  .legend__dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    margin-inline-end: var(--space-1);
+  }
+  .no-data {
+    text-align: center;
+    padding: var(--space-8);
+    color: var(--color-text-muted);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Metrics</h1>
+</div>
+
+{# ---------- Summary cards ---------- #}
+<div class="metrics-grid">
+  <div class="stat-card">
+    <div class="stat-card__label">Episodes</div>
+    <div class="stat-card__value">{{ totals.episodes_ready }}</div>
+    <div class="stat-card__sub">{{ totals.episodes }} total</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">API Cost</div>
+    <div class="stat-card__value">${{ "%.4f"|format(totals.total_cost) }}</div>
+    <div class="stat-card__sub">
+      {{ "{:,}".format(totals.total_input_tokens) }} in /
+      {{ "{:,}".format(totals.total_output_tokens) }} out tokens
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">Audio Produced</div>
+    <div class="stat-card__value">
+      {% set mins = totals.total_audio_seconds // 60 %}
+      {% set secs = totals.total_audio_seconds % 60 %}
+      {{ mins }}:{{ "%02d"|format(secs) }}
+    </div>
+    <div class="stat-card__sub">total minutes</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">Total Gen Time</div>
+    <div class="stat-card__value">
+      {% set gen_mins = (totals.total_generation_seconds // 60)|int %}
+      {% set gen_secs = (totals.total_generation_seconds % 60)|int %}
+      {{ gen_mins }}:{{ "%02d"|format(gen_secs) }}
+    </div>
+    <div class="stat-card__sub">
+      {% if totals.total_tts_seconds > 0 %}
+        {{ "%.0f"|format(totals.total_tts_seconds) }}s in TTS
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{# ---------- Per-episode table ---------- #}
+<p class="section-title">Per-Episode Breakdown</p>
+
+<div class="legend">
+  <span><span class="legend__dot" style="background: var(--color-info);"></span>Research</span>
+  <span><span class="legend__dot" style="background: var(--color-accent);"></span>Transcript</span>
+  <span><span class="legend__dot" style="background: var(--color-warning);"></span>TTS</span>
+  <span><span class="legend__dot" style="background: var(--color-success);"></span>Encode</span>
+</div>
+
+{% if episodes %}
+<div class="table-wrapper" style="margin-block-end: var(--space-6);">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Episode</th>
+        <th class="num">Audio</th>
+        <th>Pipeline</th>
+        <th class="num">Research</th>
+        <th class="num">Transcript</th>
+        <th class="num">TTS</th>
+        <th class="num">Encode</th>
+        <th class="num">Tokens (in/out)</th>
+        <th class="num">Cost</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ep in episodes %}
+      <tr>
+        <td>
+          <a href="/episodes/{{ ep.id }}" style="color: var(--color-text); text-decoration: none;">
+            {% if ep.episode_number %}#{{ ep.episode_number }} {% endif %}{{ ep.title | truncate(40) }}
+          </a>
+        </td>
+        <td class="num mono">
+          {% if ep.audio_duration_seconds %}
+            {{ ep.audio_duration_seconds // 60 }}:{{ "%02d"|format(ep.audio_duration_seconds % 60) }}
+          {% else %}<span class="dim">—</span>{% endif %}
+        </td>
+        <td>
+          {% if ep.total_duration_seconds > 0 %}
+          <div class="step-bar" title="{{ '%.0f'|format(ep.total_duration_seconds) }}s total">
+            {% for step_name in ['research', 'transcript', 'tts', 'encode'] %}
+              {% set s = ep.steps.get(step_name, {}) %}
+              {% set w = s.get('wall_seconds', 0) %}
+              {% if w > 0 %}
+              <div class="step-bar__seg step-bar__seg--{{ step_name }}"
+                   style="flex: {{ w }};"
+                   title="{{ step_name }}: {{ '%.0f'|format(w) }}s"></div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          {% else %}<span class="dim">—</span>{% endif %}
+        </td>
+        <td class="num mono">
+          {% set rs = ep.steps.get('research', {}) %}
+          {% if rs.get('wall_seconds') %}{{ "%.0f"|format(rs.wall_seconds) }}s{% else %}<span class="dim">—</span>{% endif %}
+        </td>
+        <td class="num mono">
+          {% set ts = ep.steps.get('transcript', {}) %}
+          {% if ts.get('wall_seconds') %}{{ "%.0f"|format(ts.wall_seconds) }}s{% else %}<span class="dim">—</span>{% endif %}
+        </td>
+        <td class="num mono">
+          {% set tts = ep.steps.get('tts', {}) %}
+          {% if tts.get('wall_seconds') %}
+            {{ "%.0f"|format(tts.wall_seconds) }}s
+            {% if tts.get('realtime_factor') %}
+              <span class="dim" style="font-size: var(--text-overline);">({{ "%.1f"|format(tts.realtime_factor) }}x RT)</span>
+            {% endif %}
+          {% else %}<span class="dim">—</span>{% endif %}
+        </td>
+        <td class="num mono">
+          {% set enc = ep.steps.get('encode', {}) %}
+          {% if enc.get('wall_seconds') %}{{ "%.0f"|format(enc.wall_seconds) }}s{% else %}<span class="dim">—</span>{% endif %}
+        </td>
+        <td class="num mono">
+          {% if ep.total_input_tokens %}
+            {{ "{:,}".format(ep.total_input_tokens) }} / {{ "{:,}".format(ep.total_output_tokens) }}
+          {% else %}<span class="dim">—</span>{% endif %}
+        </td>
+        <td class="num mono">
+          {% if ep.total_cost > 0 %}${{ "%.4f"|format(ep.total_cost) }}{% else %}<span class="dim">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ---------- TTS performance detail ---------- #}
+{% set tts_episodes = [] %}
+{% for ep in episodes %}
+  {% if ep.steps.get('tts', {}).get('segment_count') %}
+    {% if tts_episodes.append(ep) %}{% endif %}
+  {% endif %}
+{% endfor %}
+
+{% if tts_episodes %}
+<p class="section-title">Voice Generation Performance</p>
+<div class="table-wrapper">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Episode</th>
+        <th class="num">Segments</th>
+        <th class="num">TTS Time</th>
+        <th class="num">Audio Duration</th>
+        <th class="num">Avg/Segment</th>
+        <th class="num">Realtime Factor</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ep in tts_episodes %}
+      {% set tts = ep.steps.get('tts', {}) %}
+      <tr>
+        <td>
+          {% if ep.episode_number %}#{{ ep.episode_number }} {% endif %}{{ ep.title | truncate(40) }}
+        </td>
+        <td class="num mono">{{ tts.get('segment_count', '—') }}</td>
+        <td class="num mono">
+          {% set d = tts.get('duration_seconds', 0) %}
+          {{ (d // 60)|int }}:{{ "%02d"|format((d % 60)|int) }}
+        </td>
+        <td class="num mono">
+          {% set ad = tts.get('audio_duration_seconds', 0) %}
+          {{ (ad // 60)|int }}:{{ "%02d"|format((ad % 60)|int) }}
+        </td>
+        <td class="num mono">{{ "%.1f"|format(tts.get('avg_segment_seconds', 0)) }}s</td>
+        <td class="num mono">{{ "%.2f"|format(tts.get('realtime_factor', 0)) }}x</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% else %}
+<div class="no-data">
+  <p style="font-size: var(--text-heading); margin-block-end: var(--space-2);">No episodes yet</p>
+  <p>Generate an episode to see metrics here.</p>
+</div>
+{% endif %}
+
+{% endblock %}

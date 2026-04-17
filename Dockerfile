@@ -1,32 +1,29 @@
-FROM python:3.11-slim
+FROM node:20-slim
 
-# Install system dependencies
+# Install system dependencies (ffmpeg for audio encoding)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip
-RUN pip install --no-cache-dir --upgrade pip setuptools
-
 WORKDIR /app
 
-# Install dependencies first (cached layer unless pyproject.toml changes)
-COPY pyproject.toml .
-RUN mkdir -p src/podcast && touch src/podcast/__init__.py && \
-    pip install --no-cache-dir . && \
-    pip uninstall -y podcast
+# Install dependencies first (cached layer unless package.json changes)
+COPY package.json package-lock.json* ./
+RUN npm ci --production=false
 
-# Copy full application code
+# Copy source and build
+COPY tsconfig.json .
 COPY src/ src/
-COPY alembic.ini .
-COPY alembic/ alembic/
+COPY templates/ templates/
 COPY static/ static/
 COPY voice_refs/ voice_refs/
+COPY drizzle/ drizzle/
+COPY drizzle.config.ts .
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
-# Install the actual package (fast — deps already cached)
-RUN pip install --no-cache-dir --no-deps .
+# Build TypeScript
+RUN npm run build
 
 ENTRYPOINT ["./entrypoint.sh"]
 CMD ["combined"]
