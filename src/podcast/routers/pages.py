@@ -158,7 +158,18 @@ async def shoo_callback(request: Request):
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request, db: AsyncSession = Depends(get_db), user: User = Depends(require_auth_page)):
+async def new_episode_page(request: Request, user: User = Depends(require_auth_page)):
+    return templates.TemplateResponse(request, "episode_new.html", context={"user": user})
+
+
+@router.post("/")
+async def new_episode_submit_root(request: Request, db: AsyncSession = Depends(get_db), user: User = Depends(require_auth_page)):
+    """Alias so the form on / works."""
+    return await new_episode_submit(request, db=db, user=user)
+
+
+@router.get("/episodes", response_class=HTMLResponse)
+async def episodes_list(request: Request, db: AsyncSession = Depends(get_db), user: User = Depends(require_auth_page)):
     episodes = await list_episodes(db, user.id)
     return templates.TemplateResponse(
         request, "index.html", context={"episodes": episodes, "user": user}
@@ -166,8 +177,9 @@ async def index(request: Request, db: AsyncSession = Depends(get_db), user: User
 
 
 @router.get("/episodes/new", response_class=HTMLResponse)
-async def new_episode_page(request: Request, user: User = Depends(require_auth_page)):
-    return templates.TemplateResponse(request, "episode_new.html", context={"user": user})
+async def new_episode_page_legacy(request: Request):
+    """Redirect old URL to new home."""
+    return RedirectResponse(url="/", status_code=301)
 
 
 @router.post("/episodes/new")

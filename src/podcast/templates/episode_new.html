@@ -72,7 +72,7 @@
 <div class="error-box" style="margin-block-end: var(--space-4);">{{ error }}</div>
 {% endif %}
 
-<form method="post" action="/episodes/new" class="stack">
+<form method="post" action="/" class="stack">
   <div class="form-group">
     <label for="topic">Topic</label>
     <textarea id="topic" name="topic" class="textarea" rows="6" placeholder="What do you want to learn about? Describe the topic, angle, or specific questions you want explored..." required></textarea>
@@ -115,7 +115,7 @@
 <script>
 (function () {
   const STORAGE_KEY = 'episode_new_settings';
-  const form = document.querySelector('form[action="/episodes/new"]');
+  const form = document.querySelector('form[action="/"]');
   if (!form) return;
 
   // Restore saved settings on page load
