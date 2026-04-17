@@ -195,7 +195,7 @@ def generate_tts(
     timeout=1800,
     secrets=[modal.Secret.from_name("huggingface")],
 )
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 def generate_tts_web(body: dict) -> dict:
     """HTTP web endpoint wrapper for generate_tts.
 
