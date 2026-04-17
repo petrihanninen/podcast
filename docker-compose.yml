@@ -22,9 +22,9 @@ services:
       - "9001:9001"
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://podcast:podcast@db:5432/podcast
+      DATABASE_URL: postgresql://podcast:podcast@db:5432/podcast
       BASE_URL: http://localhost:9001
-      PORT: 9001
+      PORT: "9001"
     volumes:
       - audio:/data/audio
     depends_on:
@@ -36,7 +36,7 @@ services:
     command: worker
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://podcast:podcast@db:5432/podcast
+      DATABASE_URL: postgresql://podcast:podcast@db:5432/podcast
       BASE_URL: http://localhost:9001
     volumes:
       - audio:/data/audio
