@@ -390,6 +390,74 @@
 }
 
 /* --------------------------------------------------------------------------
+   Tabs
+   -------------------------------------------------------------------------- */
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-block-end: var(--space-6);
+}
+
+.tabs__btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  font-size: var(--text-caption);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.tabs__btn:hover {
+  color: var(--color-text);
+}
+
+.tabs__btn--active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-accent);
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel--active {
+  display: block;
+}
+
+/* --------------------------------------------------------------------------
+   Radio Cards
+   -------------------------------------------------------------------------- */
+.radio-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.radio-card:has(input:checked) {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.radio-card input {
+  accent-color: var(--color-accent);
+}
+
+.radio-card__label {
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+/* --------------------------------------------------------------------------
    Theme Toggle
    -------------------------------------------------------------------------- */
 .theme-toggle {
@@ -414,3 +482,45 @@
   font-size: 1.1rem;
   line-height: 1;
 }
+
+/* --------------------------------------------------------------------------
+   Toast
+   -------------------------------------------------------------------------- */
+.toast-container {
+  position: fixed;
+  bottom: var(--space-5);
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: var(--space-2);
+  z-index: 10000;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-body);
+  font-size: var(--text-caption);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  translate: 0 0.5rem;
+  transition: opacity var(--transition-normal), translate var(--transition-normal);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.toast.toast--visible {
+  opacity: 1;
+  translate: 0 0;
+}
+
+.toast--success { border-color: var(--color-success); color: var(--color-success); }
+.toast--error   { border-color: var(--color-error);   color: var(--color-error); }
+.toast--warning { border-color: var(--color-warning); color: var(--color-warning); }
+.toast--info    { border-color: var(--color-info);    color: var(--color-info); }

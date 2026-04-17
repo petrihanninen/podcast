@@ -34,8 +34,6 @@
     .transcript-segment .text { color: var(--color-text-secondary); }
     .empty-state { text-align: center; padding: var(--space-8); color: var(--color-text-muted); }
     .error-box { background: var(--color-error-subtle); border: 1px solid var(--color-error); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); color: var(--color-error); font-size: var(--text-caption); }
-    .toast { position: fixed; bottom: var(--space-5); left: 50%; translate: -50% 0; background: var(--color-surface-raised); color: var(--color-text); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); font-size: var(--text-caption); box-shadow: var(--shadow-lg, 0 4px 16px rgba(0,0,0,.25)); opacity: 0; transition: opacity .2s, translate .2s; pointer-events: none; z-index: 1000; }
-    .toast.show { opacity: 1; translate: -50% 0; }
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -71,9 +69,9 @@
   </main>
 
   <script src="/static/ui/js/theme.js"></script>
+  <script src="/static/ui/js/toast.js"></script>
   <script src="/static/ui/js/swipeable.js"></script>
   <script src="https://shoo.dev/shoo.js"></script>
-  <div class="toast" id="toast"></div>
   <script>
     (function() {
       var btn = document.getElementById('copy-rss');
@@ -82,11 +80,7 @@
           var token = this.getAttribute('data-feed-token');
           var url = location.origin + '/feed/' + token + '.xml';
           navigator.clipboard.writeText(url).then(function() {
-            var toast = document.getElementById('toast');
-            toast.textContent = 'RSS feed URL copied to clipboard';
-            toast.classList.add('show');
-            clearTimeout(toast._tid);
-            toast._tid = setTimeout(function() { toast.classList.remove('show'); }, 2000);
+            __toast('RSS feed URL copied to clipboard');
           });
         });
       }
