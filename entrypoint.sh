@@ -1,9 +1,17 @@
 #!/bin/bash
 set -e
 
-# Run database migrations
+# Run database migrations with timeout
 echo "Running database migrations..."
-npx drizzle-kit migrate
+timeout 30 npx drizzle-kit migrate 2>&1 || MIGRATE_EXIT=$?
+
+if [ ! -z "$MIGRATE_EXIT" ]; then
+  if [ "$MIGRATE_EXIT" = "124" ]; then
+    echo "Warning: Database migrations timed out, continuing..."
+  else
+    echo "Warning: Database migrations failed with exit code $MIGRATE_EXIT, continuing..."
+  fi
+fi
 
 case "$1" in
   web)
