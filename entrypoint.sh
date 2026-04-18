@@ -28,19 +28,16 @@ case "$1" in
     node dist/worker.js &
     WORKER_PID=$!
 
-    # Trap SIGTERM/SIGINT to forward to both processes
+    # Trap SIGTERM/SIGINT to clean up worker
     trap 'echo "Received signal, terminating..."; kill $WORKER_PID 2>/dev/null || true; exit 0' SIGTERM SIGINT
 
-    # Start web server in foreground
-    node dist/server.js &
-    WEB_PID=$!
+    # Run web server in foreground — container stays alive as long as the server runs
+    node dist/server.js
+    EXIT_CODE=$?
 
-    # Wait for either process to exit
-    wait -n
-
-    # Kill the other process
+    # Web server exited — clean up worker
     kill $WORKER_PID 2>/dev/null || true
-    kill $WEB_PID 2>/dev/null || true
+    exit $EXIT_CODE
     ;;
   *)
     exec "$@"
