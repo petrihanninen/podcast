@@ -12,10 +12,11 @@ import {
   bigserial,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 
 // ─── Users ───────────────────────────────────────────────────────────
 export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: uuid("id").primaryKey().defaultRandom().$defaultFn(() => randomUUID()),
   shooSub: varchar("shoo_sub", { length: 255 }).notNull().unique(),
   email: varchar("email", { length: 320 }),
   enabled: boolean("enabled").notNull().default(true),
@@ -35,7 +36,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
 export const episodes = pgTable(
   "episodes",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuid("id").primaryKey().defaultRandom().$defaultFn(() => randomUUID()),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -84,7 +85,7 @@ export const episodesRelations = relations(episodes, ({ one, many }) => ({
 export const jobs = pgTable(
   "jobs",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: uuid("id").primaryKey().defaultRandom().$defaultFn(() => randomUUID()),
     episodeId: uuid("episode_id")
       .notNull()
       .references(() => episodes.id, { onDelete: "cascade" }),
@@ -116,7 +117,7 @@ export const jobsRelations = relations(jobs, ({ one }) => ({
 
 // ─── Podcast Settings ────────────────────────────────────────────────
 export const podcastSettings = pgTable("podcast_settings", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: uuid("id").primaryKey().defaultRandom().$defaultFn(() => randomUUID()),
   userId: uuid("user_id")
     .notNull()
     .unique()
