@@ -139,61 +139,68 @@ async function recoverStaleJobs(): Promise<void> {
 async function pollJobs(): Promise<void> {
   while (!shutdown) {
     try {
-      // Pick up the next pending job using raw SQL for FOR UPDATE SKIP LOCKED
-      const result = await db.execute(sql`
-        SELECT id, episode_id, step
-        FROM jobs
-        WHERE status = 'pending'
-        ORDER BY
-          CASE step
-            WHEN 'encode' THEN 0
-            WHEN 'tts' THEN 1
-            WHEN 'transcript' THEN 2
-            WHEN 'research' THEN 3
-            ELSE 99
-          END,
-          created_at
-        LIMIT 1
-        FOR UPDATE SKIP LOCKED
-      `);
+      // Atomically claim the next pending job (SELECT FOR UPDATE + mark running in one tx)
+      const claimed = await db.transaction(async (tx) => {
+        const result = await tx.execute(sql`
+          SELECT id, episode_id, step
+          FROM jobs
+          WHERE status = 'pending'
+          ORDER BY
+            CASE step
+              WHEN 'encode' THEN 0
+              WHEN 'tts' THEN 1
+              WHEN 'transcript' THEN 2
+              WHEN 'research' THEN 3
+              ELSE 99
+            END,
+            created_at
+          LIMIT 1
+          FOR UPDATE SKIP LOCKED
+        `);
 
-      const rows = result.rows as Array<{
-        id: string;
-        episode_id: string;
-        step: string;
-      }>;
-      if (!rows || rows.length === 0) {
+        const rows = result.rows as Array<{
+          id: string;
+          episode_id: string;
+          step: string;
+        }>;
+        if (!rows || rows.length === 0) return null;
+
+        const { id, episode_id: episodeId, step } = rows[0];
+
+        // Gate costly steps behind daily spend limit
+        if (COSTLY_STEPS.has(step) && settings.dailySpendLimit > 0) {
+          const spend = await todaysSpend();
+          if (spend >= settings.dailySpendLimit) {
+            log.warn(
+              "Daily spend limit ($%.2f/$%.2f) reached — skipping %s job %s",
+              spend,
+              settings.dailySpendLimit,
+              step,
+              id
+            );
+            return null;
+          }
+        }
+
+        // Mark as running
+        await tx
+          .update(jobs)
+          .set({
+            status: "running",
+            startedAt: new Date(),
+            attempts: sql`${jobs.attempts} + 1`,
+          })
+          .where(eq(jobs.id, id));
+
+        return { id, episodeId, step };
+      });
+
+      if (!claimed) {
         await sleep(POLL_INTERVAL);
         continue;
       }
 
-      const { id: jobId, episode_id: episodeId, step } = rows[0];
-
-      // Gate costly steps behind daily spend limit
-      if (COSTLY_STEPS.has(step) && settings.dailySpendLimit > 0) {
-        const spend = await todaysSpend();
-        if (spend >= settings.dailySpendLimit) {
-          log.warn(
-            "Daily spend limit ($%.2f/$%.2f) reached — skipping %s job %s",
-            spend,
-            settings.dailySpendLimit,
-            step,
-            jobId
-          );
-          await sleep(POLL_INTERVAL);
-          continue;
-        }
-      }
-
-      // Mark as running
-      await db
-        .update(jobs)
-        .set({
-          status: "running",
-          startedAt: new Date(),
-          attempts: sql`${jobs.attempts} + 1`,
-        })
-        .where(eq(jobs.id, jobId));
+      const { id: jobId, episodeId, step } = claimed;
 
       // Update episode status
       await db

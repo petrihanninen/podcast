@@ -14,6 +14,7 @@ import {
   cookieSecure,
   createSessionCookie,
   getCurrentUser,
+  safeTokenCompare,
   verifyShooToken,
 } from "../auth.js";
 import { createLogger } from "../log-handler.js";
@@ -71,7 +72,7 @@ export async function authRoutes(app: FastifyInstance) {
       if (
         !token ||
         !settings.registerToken ||
-        token !== settings.registerToken
+        !safeTokenCompare(token, settings.registerToken)
       ) {
         return reply
           .code(403)
@@ -132,7 +133,7 @@ export async function authRoutes(app: FastifyInstance) {
     if (
       registerToken &&
       settings.registerToken &&
-      registerToken === settings.registerToken
+      safeTokenCompare(registerToken, settings.registerToken)
     ) {
       try {
         // Check if first user (becomes admin)

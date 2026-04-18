@@ -89,6 +89,17 @@ await app.register(fastifyStatic, {
   decorateReply: false,
 });
 
+// ─── CSRF protection ────────────────────────────────────────────────
+app.addHook("onRequest", async (request, reply) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return;
+  const origin = request.headers.origin;
+  if (!origin) return;
+  const expected = new URL(settings.baseUrl).origin;
+  if (origin !== expected) {
+    return reply.code(403).send({ error: "Forbidden" });
+  }
+});
+
 // ─── Error handlers ─────────────────────────────────────────────────
 app.setErrorHandler((error: any, request, reply) => {
   if (error instanceof RequiresLogin) {

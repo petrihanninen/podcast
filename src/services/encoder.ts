@@ -75,25 +75,31 @@ export async function encodeMp3(
   );
   const encodeDuration = (performance.now() - t0) / 1000;
 
-  // Get next episode number (scoped per user)
-  const [{ maxNum }] = await db
-    .select({
-      maxNum: sql<number>`coalesce(max(${episodes.episodeNumber}), 0)`,
-    })
-    .from(episodes)
-    .where(eq(episodes.userId, episode.userId));
-  const nextNumber = maxNum + 1;
+  // Assign episode number and update atomically (advisory lock prevents races)
+  const nextNumber = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${episode.userId}))`
+    );
+    const [{ maxNum }] = await tx
+      .select({
+        maxNum: sql<number>`coalesce(max(${episodes.episodeNumber}), 0)`,
+      })
+      .from(episodes)
+      .where(eq(episodes.userId, episode.userId));
+    const next = (maxNum ?? 0) + 1;
 
-  // Update episode
-  await db
-    .update(episodes)
-    .set({
-      audioFilename: filename,
-      audioDurationSeconds: durationSeconds,
-      audioSizeBytes: fileSize,
-      episodeNumber: nextNumber,
-    })
-    .where(eq(episodes.id, episodeId));
+    await tx
+      .update(episodes)
+      .set({
+        audioFilename: filename,
+        audioDurationSeconds: durationSeconds,
+        audioSizeBytes: fileSize,
+        episodeNumber: next,
+      })
+      .where(eq(episodes.id, episodeId));
+
+    return next;
+  });
 
   log.info(
     "Encoding complete for episode %s: %ds, %d bytes, episode #%d (%.1fs)",

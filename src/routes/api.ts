@@ -34,6 +34,10 @@ function calcCost(
   );
 }
 
+function escapeLike(s: string): string {
+  return s.replace(/[%_\\]/g, "\\$&");
+}
+
 export async function apiRoutes(app: FastifyInstance) {
   // Health check
   app.get("/api/health", async () => ({ status: "ok" }));
@@ -127,7 +131,7 @@ export async function apiRoutes(app: FastifyInstance) {
     const conditions = [];
     if (level) conditions.push(eq(logEntries.level, level.toUpperCase()));
     if (source) conditions.push(eq(logEntries.source, source.toLowerCase()));
-    if (search) conditions.push(ilike(logEntries.message, `%${search}%`));
+    if (search) conditions.push(ilike(logEntries.message, `%${escapeLike(search)}%`));
 
     const where =
       conditions.length > 0 ? and(...conditions) : undefined;

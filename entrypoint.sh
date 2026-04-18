@@ -29,7 +29,7 @@ case "$1" in
     WORKER_PID=$!
 
     # Trap SIGTERM/SIGINT to clean up worker
-    trap 'echo "Received signal, terminating..."; kill $WORKER_PID 2>/dev/null || true; exit 0' SIGTERM SIGINT
+    trap 'echo "Received signal, terminating..."; kill $WORKER_PID 2>/dev/null || true; wait $WORKER_PID 2>/dev/null || true; exit 0' SIGTERM SIGINT
 
     # Run web server in foreground — container stays alive as long as the server runs
     node dist/server.js
@@ -37,6 +37,7 @@ case "$1" in
 
     # Web server exited — clean up worker
     kill $WORKER_PID 2>/dev/null || true
+    wait $WORKER_PID 2>/dev/null || true
     exit $EXIT_CODE
     ;;
   *)

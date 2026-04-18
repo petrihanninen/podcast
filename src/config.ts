@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { randomBytes } from "node:crypto";
 
 function env(key: string, fallback = ""): string {
   return process.env[key] ?? fallback;
@@ -27,7 +28,10 @@ export const settings = {
   baseUrl: env("BASE_URL", "http://localhost:9001"),
   apiPassword: env("API_PASSWORD"),
   registerToken: env("REGISTER_TOKEN"),
-  sessionSecret: env("SESSION_SECRET"),
+  sessionSecret: env("SESSION_SECRET") || (() => {
+    console.warn("WARNING: SESSION_SECRET not set — using random value (sessions won't persist across restarts)");
+    return randomBytes(32).toString("hex");
+  })(),
   dailySpendLimit: parseFloat(env("DAILY_SPEND_LIMIT", "5.0")),
 
   // Modal TTS endpoint URL (set after deploying modal_app.py with web endpoint)

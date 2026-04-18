@@ -100,13 +100,20 @@ export async function deleteEpisode(
   // Clean up audio files
   const userAudioDir = path.join(settings.audioDir, userId);
   if (episode.audioFilename) {
-    const safeName = path.basename(episode.audioFilename);
-    const audioPath = path.join(userAudioDir, safeName);
-    const resolved = fs.realpathSync(audioPath).toString();
-    if (resolved.startsWith(fs.realpathSync(userAudioDir).toString())) {
-      if (fs.existsSync(resolved)) fs.unlinkSync(resolved);
-    } else {
-      log.warn("Refusing to delete file outside audio dir: %s", audioPath);
+    try {
+      const safeName = path.basename(episode.audioFilename);
+      const audioPath = path.join(userAudioDir, safeName);
+      if (fs.existsSync(audioPath)) {
+        const resolved = fs.realpathSync(audioPath);
+        const resolvedDir = fs.realpathSync(userAudioDir);
+        if (resolved.startsWith(resolvedDir + path.sep)) {
+          fs.unlinkSync(resolved);
+        } else {
+          log.warn("Refusing to delete file outside audio dir: %s", audioPath);
+        }
+      }
+    } catch (e: any) {
+      log.warn("Failed to clean up audio file: %s", e.message);
     }
   }
 
