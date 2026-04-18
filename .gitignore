@@ -5,4 +5,3 @@ dist/
 *.mp3
 *.wav
 !voice_refs/*.wav
-drizzle/
