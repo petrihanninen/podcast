@@ -61,11 +61,11 @@
           <p class="card__body">{{ ep.topic | truncate(150) }}</p>
           <div class="flex flex--between" style="margin-block-start: var(--space-2); align-items: center;">
             <p class="episode-meta">
-              {% if ep.episode_number %}#{{ ep.episode_number }} · {% endif %}
-              {% if ep.audio_duration_seconds %}{{ format_duration(ep.audio_duration_seconds) }} · {% endif %}
-              {% if ep.audio_size_bytes %}{{ format_file_size(ep.audio_size_bytes) }} · {% endif %}
-              {{ ep.created_at | date('%b %d, %Y') }}
-              {% if ep.published_at %} · Published {{ ep.published_at | date('%b %d') }}{% endif %}
+              {% if ep.episodeNumber %}#{{ ep.episodeNumber }} · {% endif %}
+              {% if ep.audioDurationSeconds %}{{ format_duration(ep.audioDurationSeconds) }} · {% endif %}
+              {% if ep.audioSizeBytes %}{{ format_file_size(ep.audioSizeBytes) }} · {% endif %}
+              {{ ep.createdAt | date('%b %d, %Y') }}
+              {% if ep.publishedAt %} · Published {{ ep.publishedAt | date('%b %d') }}{% endif %}
             </p>
             <div class="swipeable__buttons">
               {% if ep.status == 'failed' %}

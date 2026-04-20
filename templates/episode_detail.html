@@ -177,16 +177,16 @@
   <p style="color: var(--color-text-secondary); margin-block-start: var(--space-2);">{{ episode.description }}</p>
   {% endif %}
   <p class="episode-meta" style="margin-block-start: var(--space-2);">
-    {% if episode.episode_number %}Episode #{{ episode.episode_number }} · {% endif %}
-    {% if episode.audio_duration_seconds %}{{ format_duration(episode.audio_duration_seconds) }} · {% endif %}
-    {{ episode.created_at | date('%b %d, %Y at %H:%M') }}
+    {% if episode.episodeNumber %}Episode #{{ episode.episodeNumber }} · {% endif %}
+    {% if episode.audioDurationSeconds %}{{ format_duration(episode.audioDurationSeconds) }} · {% endif %}
+    {{ episode.createdAt | date('%b %d, %Y at %H:%M') }}
   </p>
 </div>
 
 {% if episode.status == 'failed' %}
 <div class="error-box" style="margin-block-end: var(--space-4);">
-  <strong>Failed at: {{ episode.failed_step }}</strong><br>
-  {{ episode.error_message or 'Unknown error' }}
+  <strong>Failed at: {{ episode.failedStep }}</strong><br>
+  {{ episode.errorMessage or 'Unknown error' }}
 </div>
 <div style="margin-block-end: var(--space-4);">
   <button type="button" class="btn btn--secondary" onclick="retryEpisode()">Retry</button>
@@ -234,12 +234,12 @@
 </div>
 {% endif %}
 
-{% if episode.status == 'ready' and episode.audio_filename %}
+{% if episode.status == 'ready' and episode.audioFilename %}
 <div class="card" style="margin-block-end: var(--space-4);">
   <p class="card__title" data-collapsible>Listen</p>
   <div class="card__content">
     <audio id="podcast-player" controls preload="metadata">
-      <source src="/audio/{{ episode.audio_filename }}" type="audio/mpeg">
+      <source src="/audio/{{ episode.audioFilename }}" type="audio/mpeg">
       Your browser does not support the audio element.
     </audio>
     <div class="speed-controls">
@@ -281,30 +281,30 @@
 <div class="detail-grid">
   <div class="detail-item">
     <div class="detail-item__label">Created</div>
-    <div class="detail-item__value">{{ episode.created_at | date('%b %d, %Y') }}<br>{{ episode.created_at | date('%H:%M') }}</div>
+    <div class="detail-item__value">{{ episode.createdAt | date('%b %d, %Y') }}<br>{{ episode.createdAt | date('%H:%M') }}</div>
   </div>
-  {% if episode.published_at %}
+  {% if episode.publishedAt %}
   <div class="detail-item">
     <div class="detail-item__label">Published</div>
-    <div class="detail-item__value">{{ episode.published_at | date('%b %d, %Y') }}<br>{{ episode.published_at | date('%H:%M') }}</div>
+    <div class="detail-item__value">{{ episode.publishedAt | date('%b %d, %Y') }}<br>{{ episode.publishedAt | date('%H:%M') }}</div>
   </div>
   {% endif %}
-  {% if episode.audio_duration_seconds %}
+  {% if episode.audioDurationSeconds %}
   <div class="detail-item">
     <div class="detail-item__label">Duration</div>
-    <div class="detail-item__value">{{ format_duration(episode.audio_duration_seconds) }}</div>
+    <div class="detail-item__value">{{ format_duration(episode.audioDurationSeconds) }}</div>
   </div>
   {% endif %}
-  {% if episode.audio_size_bytes %}
+  {% if episode.audioSizeBytes %}
   <div class="detail-item">
     <div class="detail-item__label">File size</div>
-    <div class="detail-item__value">{{ format_file_size(episode.audio_size_bytes) }}</div>
+    <div class="detail-item__value">{{ format_file_size(episode.audioSizeBytes) }}</div>
   </div>
   {% endif %}
-  {% if episode.episode_number %}
+  {% if episode.episodeNumber %}
   <div class="detail-item">
     <div class="detail-item__label">Episode</div>
-    <div class="detail-item__value">#{{ episode.episode_number }}</div>
+    <div class="detail-item__value">#{{ episode.episodeNumber }}</div>
   </div>
   {% endif %}
 </div>
@@ -332,11 +332,11 @@
 </div>
 {% endif %}
 
-{% if episode.research_notes %}
+{% if episode.researchNotes %}
 <div class="card collapsed" style="margin-block-end: var(--space-4);">
   <p class="card__title" data-collapsible>Research Notes</p>
   <div class="card__content">
-    <pre style="white-space: pre-wrap; font-size: var(--text-caption); color: var(--color-text-secondary); word-break: break-word; margin-block-start: var(--space-3);">{{ episode.research_notes }}</pre>
+    <pre style="white-space: pre-wrap; font-size: var(--text-caption); color: var(--color-text-secondary); word-break: break-word; margin-block-start: var(--space-3);">{{ episode.researchNotes }}</pre>
   </div>
 </div>
 {% endif %}
