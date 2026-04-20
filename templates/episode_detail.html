@@ -399,8 +399,8 @@
 
       // Update meta
       let meta = el.querySelector('.pipeline-step__meta');
-      if (job && job.started_at && job.completed_at) {
-        const secs = Math.round((new Date(job.completed_at) - new Date(job.started_at)) / 1000);
+      if (job && job.startedAt && job.completedAt) {
+        const secs = Math.round((new Date(job.completedAt) - new Date(job.startedAt)) / 1000);
         const text = secs >= 60 ? `${Math.floor(secs/60)}m ${secs%60}s` : `${secs}s`;
         if (!meta) {
           meta = document.createElement('span');
@@ -408,8 +408,8 @@
           el.appendChild(meta);
         }
         meta.textContent = text;
-      } else if (status === 'running' && stepName === 'tts' && data.tts_progress) {
-        const p = data.tts_progress;
+      } else if (status === 'running' && stepName === 'tts' && data.ttsProgress) {
+        const p = data.ttsProgress;
         if (!meta) {
           meta = document.createElement('span');
           meta.className = 'pipeline-step__meta';
