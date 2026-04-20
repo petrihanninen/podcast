@@ -93,7 +93,7 @@
     <p class="card__body">
       Subscribe to your podcast feed at:
       <code style="background: var(--color-bg-subtle); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-size: var(--text-caption);">
-        {{ request.url_for('feed', feed_token=user.feed_token) }}
+        /feed/{{ user.feedToken }}.xml
       </code>
     </p>
   </div>
