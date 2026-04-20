@@ -44,7 +44,7 @@
       <li><a href="/" class="nav__link">New</a></li>
       <li><a href="/episodes" class="nav__link">Episodes</a></li>
       {% if user is defined and user %}
-      <li><button id="copy-rss" class="nav__link" style="background:none;border:none;cursor:pointer;font:inherit;padding:inherit;" data-feed-token="{{ user.feed_token }}">RSS</button></li>
+      <li><button id="copy-rss" class="nav__link" style="background:none;border:none;cursor:pointer;font:inherit;padding:inherit;" data-feed-token="{{ user.feedToken }}">RSS</button></li>
       {% endif %}
       <li><a href="/settings" class="nav__link">Settings</a></li>
       {% if user is defined and user and user.is_admin %}
