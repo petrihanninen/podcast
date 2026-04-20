@@ -64,7 +64,7 @@ export async function apiRoutes(app: FastifyInstance) {
     return eps.map((ep) => {
       const ttsProgress =
         ep.status === "generating_audio" ? getTtsProgress(ep.id) : null;
-      return { ...ep, tts_progress: ttsProgress };
+      return { ...ep, ttsProgress };
     });
   });
 
@@ -80,7 +80,7 @@ export async function apiRoutes(app: FastifyInstance) {
         episode.status === "generating_audio"
           ? getTtsProgress(episode.id)
           : null;
-      return { ...episode, tts_progress: ttsProgress };
+      return { ...episode, ttsProgress };
     }
   );
 
