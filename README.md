@@ -26,8 +26,8 @@ Alternatives: `RESEARCH_MODEL` accepts `gemini-flash-lite`, `gpt-luna`, `gpt-6-l
 1. **Database**: add Neon from the Vercel Marketplace (free plan) or create a Neon project yourself; use the pooled connection string as `DATABASE_URL`.
 2. **Audio storage**: create an S3-compatible bucket with public reads and set `STORAGE_ENDPOINT`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY` and `STORAGE_PUBLIC_URL` (the public base URL of the bucket). Cloudflare R2 (10 GB and all egress free; `STORAGE_REGION=auto`, public URL from the bucket's r2.dev development URL or a custom domain on a Cloudflare zone), Backblaze B2 (10 GB free, public "friendly" URLs without DNS) and Neon Object Storage (5 GB free per project) all work.
 3. **Keys**: `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `DEEPINFRA_API_KEY`, plus `SESSION_SECRET` (`openssl rand -hex 32`) and `REGISTER_TOKEN`.
-4. Import the repository in Vercel. Nitro is detected automatically (`npm run build`). In the project settings enable **Environment Variables → Enable access to System Environment Variables**; Workflow needs `VERCEL_DEPLOYMENT_ID` to pick the Vercel backend, otherwise every run fails on the read-only filesystem.
-5. Apply the schema once against production: `DATABASE_URL=... npm run db:migrate`.
+4. Import the repository in Vercel. Nitro is detected automatically (`pnpm build`; the pnpm version comes from `packageManager` in `package.json`). In the project settings enable **Environment Variables → Enable access to System Environment Variables**; Workflow needs `VERCEL_DEPLOYMENT_ID` to pick the Vercel backend, otherwise every run fails on the read-only filesystem.
+5. Apply the schema once against production: `DATABASE_URL=... pnpm db:migrate`.
 6. Deploy. `BASE_URL` defaults to the production URL; set it explicitly if you use a custom domain (it is also the login callback origin).
 
 Pushes to `main` deploy automatically. Workflow runs, steps and retries are visible under **Observability → Workflows** in the Vercel dashboard.
@@ -37,9 +37,9 @@ Pushes to `main` deploy automatically. Workflow runs, steps and retries are visi
 ```bash
 cp .env.example .env     # fill in keys; DATABASE_URL defaults to the compose Postgres below
 docker compose up -d     # local Postgres on :9002
-npm install
-npm run db:migrate
-npm run dev              # http://localhost:3000, workflows run in-process (Local World)
+pnpm install
+pnpm db:migrate
+pnpm dev                  # http://localhost:3000, workflows run in-process (Local World)
 ```
 
 `npx workflow web` opens a local inspector for workflow runs. For storage you need a real bucket even locally, or any S3-compatible server.
