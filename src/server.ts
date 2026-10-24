@@ -41,6 +41,20 @@ nunjucksEnv.addFilter("from_json", (value: string) => {
   }
 });
 
+nunjucksEnv.addFilter("money", (value: number | null | undefined) =>
+  `$${Number(value ?? 0).toFixed(4)}`
+);
+nunjucksEnv.addFilter("fixed", (value: number | null | undefined, digits = 1) =>
+  Number(value ?? 0).toFixed(digits)
+);
+nunjucksEnv.addFilter("intcomma", (value: number | null | undefined) =>
+  Math.round(Number(value ?? 0)).toLocaleString("en-US")
+);
+nunjucksEnv.addFilter("mmss", (value: number | null | undefined) => {
+  const total = Math.floor(Number(value ?? 0));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+});
+
 // Date formatting filter (replaces Python's strftime)
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 nunjucksEnv.addFilter("date", (value: Date | string | null, fmt: string) => {

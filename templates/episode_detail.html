@@ -239,7 +239,7 @@
   <p class="card__title" data-collapsible>Listen</p>
   <div class="card__content">
     <audio id="podcast-player" controls preload="metadata">
-      <source src="/audio/{{ episode.audioFilename }}" type="audio/mpeg">
+      <source src="/audio/{{ episode.userId }}/{{ episode.audioFilename }}" type="audio/mpeg">
       Your browser does not support the audio element.
     </audio>
     <div class="speed-controls">

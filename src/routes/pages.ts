@@ -8,13 +8,10 @@ import {
   getEpisode,
   listEpisodes,
 } from "../services/episode.js";
-import { getTtsProgress as readTtsProgress } from "../services/tts.js";
-import { getAllModelPricing } from "../services/llm-providers.js";
+import { getTtsProgress as readTtsProgress, type TtsProgress } from "../services/tts.js";
+import { parseMetrics, stepCost } from "../services/cost.js";
 import { DEFAULT_TONE_NOTES } from "../services/transcript.js";
 import { renderTemplate } from "../server.js";
-
-const MODEL_PRICING = getAllModelPricing();
-const DEFAULT_PRICING = { input: 3.0, output: 15.0 };
 
 // ─── Template helpers ────────────────────────────────────────────────
 export function statusBadge(status: string): string {
@@ -114,22 +111,9 @@ export function getCurrentStepIndex(episode: any): number {
   return PIPELINE_STEPS.length;
 }
 
-export function getTtsProgress(episode: any): Record<string, unknown> | null {
+export function getTtsProgress(episode: any): TtsProgress | null {
   if (episode.status !== "generating_audio") return null;
-  const progress = readTtsProgress(episode.id);
-  if (!progress) return null;
-  return progress;
-}
-
-function calcCost(
-  inputTokens: number,
-  outputTokens: number,
-  model = ""
-): number {
-  const pricing = MODEL_PRICING[model] ?? DEFAULT_PRICING;
-  return (
-    (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000
-  );
+  return readTtsProgress(episode.id);
 }
 
 function html(reply: any, content: string) {
@@ -328,7 +312,10 @@ export async function pageRoutes(app: FastifyInstance) {
       episodes_ready: 0,
       total_input_tokens: 0,
       total_output_tokens: 0,
+      total_search_queries: 0,
       total_cost: 0,
+      total_llm_cost: 0,
+      total_tts_cost: 0,
       total_audio_seconds: 0,
       total_generation_seconds: 0,
       total_tts_seconds: 0,
@@ -338,7 +325,46 @@ export async function pageRoutes(app: FastifyInstance) {
       totals.episodes++;
       if (ep.status === "ready") totals.episodes_ready++;
 
-      const row: Record<string, unknown> = {
+      const steps: Record<string, Record<string, unknown>> = {};
+      let inputTokens = 0;
+      let outputTokens = 0;
+      let cost = 0;
+      let wallTotal = 0;
+
+      for (const job of ep.jobs) {
+        const wall =
+          job.startedAt && job.completedAt
+            ? Math.round(((job.completedAt.getTime() - job.startedAt.getTime()) / 1000) * 100) / 100
+            : null;
+        if (wall !== null) wallTotal += wall;
+
+        const metrics = job.status === "completed" ? parseMetrics(job.metricsJson) : null;
+        if (!metrics) {
+          if (wall !== null) steps[job.step] = { wall_seconds: wall };
+          continue;
+        }
+
+        const stepCostUsd = stepCost(metrics);
+        steps[job.step] = { ...metrics, cost_usd: stepCostUsd, wall_seconds: wall };
+        inputTokens += Number(metrics.input_tokens ?? 0);
+        outputTokens += Number(metrics.output_tokens ?? 0);
+        totals.total_search_queries += Number(metrics.search_queries ?? 0);
+        cost += stepCostUsd;
+        if (job.step === "tts") {
+          totals.total_tts_seconds += Number(metrics.duration_seconds ?? 0);
+          totals.total_tts_cost += stepCostUsd;
+        } else {
+          totals.total_llm_cost += stepCostUsd;
+        }
+      }
+
+      totals.total_input_tokens += inputTokens;
+      totals.total_output_tokens += outputTokens;
+      totals.total_cost += cost;
+      totals.total_generation_seconds += wallTotal;
+      if (ep.audioDurationSeconds) totals.total_audio_seconds += ep.audioDurationSeconds;
+
+      return {
         id: ep.id,
         title: ep.title,
         status: ep.status,
@@ -346,73 +372,22 @@ export async function pageRoutes(app: FastifyInstance) {
         audio_duration_seconds: ep.audioDurationSeconds,
         audio_size_bytes: ep.audioSizeBytes,
         created_at: ep.createdAt,
-        steps: {} as Record<string, unknown>,
-        total_input_tokens: 0,
-        total_output_tokens: 0,
-        total_cost: 0,
-        total_duration_seconds: 0,
+        steps,
+        total_input_tokens: inputTokens,
+        total_output_tokens: outputTokens,
+        total_cost: cost,
+        total_duration_seconds: wallTotal,
       };
-
-      for (const job of ep.jobs) {
-        if (job.status !== "completed" || !job.metricsJson) {
-          if (job.startedAt && job.completedAt) {
-            const wall =
-              (job.completedAt.getTime() - job.startedAt.getTime()) / 1000;
-            (row.steps as any)[job.step] = {
-              wall_seconds: Math.round(wall * 100) / 100,
-            };
-            (row.total_duration_seconds as number) += wall;
-          }
-          continue;
-        }
-
-        const metrics = JSON.parse(job.metricsJson);
-        const stepData = { ...metrics };
-
-        if (job.startedAt && job.completedAt) {
-          const wall =
-            (job.completedAt.getTime() - job.startedAt.getTime()) / 1000;
-          stepData.wall_seconds = Math.round(wall * 100) / 100;
-          (row.total_duration_seconds as number) += wall;
-        }
-
-        (row.steps as any)[job.step] = stepData;
-
-        const inputT = metrics.input_tokens ?? 0;
-        const outputT = metrics.output_tokens ?? 0;
-        (row.total_input_tokens as number) += inputT;
-        (row.total_output_tokens as number) += outputT;
-        totals.total_input_tokens += inputT;
-        totals.total_output_tokens += outputT;
-
-        if (job.step === "tts") {
-          totals.total_tts_seconds += metrics.duration_seconds ?? 0;
-        }
-      }
-
-      // Cost
-      for (const job of ep.jobs) {
-        if (job.status !== "completed" || !job.metricsJson) continue;
-        const m = JSON.parse(job.metricsJson);
-        (row.total_cost as number) += calcCost(
-          m.input_tokens ?? 0,
-          m.output_tokens ?? 0,
-          m.model ?? ""
-        );
-      }
-      totals.total_cost += row.total_cost as number;
-      totals.total_generation_seconds += row.total_duration_seconds as number;
-      if (ep.audioDurationSeconds)
-        totals.total_audio_seconds += ep.audioDurationSeconds;
-
-      return row;
     });
+
+    const ttsEpisodes = episodeRows.filter((row) => row.steps.tts?.segment_count);
 
     return html(
       reply,
       renderTemplate("metrics.html", {
         totals,
         episodes: episodeRows,
+        tts_episodes: ttsEpisodes,
         user,
       })
     );

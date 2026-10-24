@@ -13,7 +13,7 @@ import { runResearch } from "./services/research.js";
 import { generateTranscript } from "./services/transcript.js";
 import { synthesizeSpeech } from "./services/tts.js";
 import { encodeMp3 } from "./services/encoder.js";
-import { getAllModelPricing } from "./services/llm-providers.js";
+import { parseMetrics, stepCost } from "./services/cost.js";
 
 setupLogging("worker");
 const log = createLogger("worker");
@@ -51,9 +51,6 @@ const STEP_PRIORITY: Record<string, number> = {
 const POLL_INTERVAL = 10_000;
 const COSTLY_STEPS = new Set(["research", "transcript", "tts"]);
 
-const MODEL_PRICING = getAllModelPricing();
-const DEFAULT_PRICING = { input: 3.0, output: 15.0 };
-
 let shutdown = false;
 
 async function todaysSpend(): Promise<number> {
@@ -72,14 +69,7 @@ async function todaysSpend(): Promise<number> {
 
   let total = 0;
   for (const job of completedJobs) {
-    if (!job.metricsJson) continue;
-    const metrics = JSON.parse(job.metricsJson);
-    const inputT = metrics.input_tokens ?? 0;
-    const outputT = metrics.output_tokens ?? 0;
-    const model = metrics.model ?? "";
-    const pricing = MODEL_PRICING[model] ?? DEFAULT_PRICING;
-    total +=
-      (inputT * pricing.input + outputT * pricing.output) / 1_000_000;
+    total += stepCost(parseMetrics(job.metricsJson));
   }
   return total;
 }

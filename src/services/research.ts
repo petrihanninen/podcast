@@ -9,31 +9,31 @@ const log = createLogger("research");
 const RESEARCH_SYSTEM_PROMPT_TEMPLATE = `You are a podcast research assistant. Given a topic, produce comprehensive \
 research notes that will be used to write a podcast episode transcript.
 
-Your research should include:
+Use web search to ground the notes in current, reliable sources. Your research should include:
 - Key facts and background information
 - Interesting angles and perspectives
-- Recent developments and current state
+- Recent developments and current state (with dates)
 - Common misconceptions or surprising findings
 - Potential discussion points and debate areas
 - Relevant examples, case studies, or anecdotes
 
-Be thorough but organized. Use clear headings and bullet points. \
-The research should provide enough material for a {duration_description} conversational podcast episode.`;
+Be thorough but organized. Use clear headings and bullet points, and mention the source \
+of important claims. The research should provide enough material for a {duration_description} \
+conversational podcast episode.`;
 
 const RESEARCH_LENGTH_CONFIG: Record<
   number,
   { durationDescription: string; maxTokens: number }
 > = {
-  15: { durationDescription: "10-15 minute", maxTokens: 4096 },
-  30: { durationDescription: "25-30 minute", maxTokens: 8192 },
-  60: { durationDescription: "55-60 minute", maxTokens: 12000 },
-  120: { durationDescription: "2-hour", maxTokens: 16000 },
+  15: { durationDescription: "10-15 minute", maxTokens: 6000 },
+  30: { durationDescription: "25-30 minute", maxTokens: 10000 },
+  60: { durationDescription: "55-60 minute", maxTokens: 16000 },
+  120: { durationDescription: "2-hour", maxTokens: 24000 },
 };
 
 export async function runResearch(
   episodeId: string
 ): Promise<Record<string, unknown>> {
-  // Read episode data
   const [episode] = await db
     .select()
     .from(episodes)
@@ -63,14 +63,12 @@ export async function runResearch(
   let response = null;
 
   for (let attempt = 0; attempt <= MAX_EMPTY_RETRIES; attempt++) {
-    response = await complete(
-      modelInfo,
-      systemPrompt,
-      `Research the following topic thoroughly:\n\n${episode.topic}`,
-      config.maxTokens,
-      1.0,
-      true
-    );
+    response = await complete(modelInfo, {
+      system: systemPrompt,
+      user: `Research the following topic thoroughly:\n\n${episode.topic}`,
+      maxTokens: config.maxTokens,
+      webSearch: true,
+    });
     if (response.text) break;
     if (attempt < MAX_EMPTY_RETRIES) {
       const wait = 3 * 2 ** attempt;
@@ -95,7 +93,6 @@ export async function runResearch(
     );
   }
 
-  // Save results
   await db
     .update(episodes)
     .set({ researchNotes: response.text })
@@ -106,16 +103,20 @@ export async function runResearch(
     provider: modelInfo.provider,
     input_tokens: response.inputTokens,
     output_tokens: response.outputTokens,
+    search_queries: response.searchQueries,
+    cost_usd: response.costUsd,
     duration_seconds: Math.round(duration * 100) / 100,
     output_chars: response.text.length,
   };
 
   log.info(
-    "Research complete for episode %s (%d chars, %d in/%d out tokens, %.1fs)",
+    "Research complete for episode %s (%d chars, %d in/%d out tokens, %d searches, $%s, %.1fs)",
     episodeId,
     response.text.length,
     metrics.input_tokens,
     metrics.output_tokens,
+    metrics.search_queries,
+    metrics.cost_usd.toFixed(4),
     duration
   );
 
