@@ -1,6 +1,6 @@
 import { settings } from "../config.js";
 import { getClient } from "./anthropic-client.js";
-import { createLogger } from "../log-handler.js";
+import { createLogger } from "../log.js";
 
 const log = createLogger("llm-providers");
 
@@ -183,7 +183,7 @@ async function completeOpenAI(model: ModelInfo, req: CompletionRequest): Promise
   if (req.webSearch) payload.tools = [{ type: "web_search" }];
 
   const data = await postJson(
-    "https://api.openai.com/v1/responses",
+    `${settings.openaiBaseUrl}/responses`,
     { Authorization: `Bearer ${settings.openaiApiKey}` },
     payload,
     `OpenAI ${model.modelId}`
@@ -231,7 +231,7 @@ async function completeGoogle(model: ModelInfo, req: CompletionRequest): Promise
   if (req.webSearch) payload.tools = [{ type: "google_search" }];
 
   const data = await postJson(
-    "https://generativelanguage.googleapis.com/v1beta/interactions",
+    `${settings.geminiBaseUrl}/interactions`,
     { "x-goog-api-key": settings.googleApiKey },
     payload,
     `Gemini ${model.modelId}`

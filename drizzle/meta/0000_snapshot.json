@@ -1,5 +1,5 @@
 {
-  "id": "bc6b548e-0dd8-4b8e-a023-bbefa15d6fc9",
+  "id": "acf990a5-0542-460e-afce-43813eb2714f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -65,6 +65,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "workflow_run_id": {
+          "name": "workflow_run_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "research_model": {
           "name": "research_model",
           "type": "varchar(100)",
@@ -89,9 +95,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "audio_filename": {
-          "name": "audio_filename",
-          "type": "varchar(255)",
+        "audio_url": {
+          "name": "audio_url",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -245,12 +251,26 @@
           "notNull": true,
           "default": 0
         },
-        "max_attempts": {
-          "name": "max_attempts",
+        "progress_done": {
+          "name": "progress_done",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "default": 3
+          "default": 0
+        },
+        "progress_total": {
+          "name": "progress_total",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "progress_seconds": {
+          "name": "progress_seconds",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -279,6 +299,27 @@
         }
       },
       "indexes": {
+        "idx_jobs_episode_step": {
+          "name": "idx_jobs_episode_step",
+          "columns": [
+            {
+              "expression": "episode_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "step",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "idx_jobs_status": {
           "name": "idx_jobs_status",
           "columns": [
@@ -290,21 +331,6 @@
             },
             {
               "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_jobs_episode_id": {
-          "name": "idx_jobs_episode_id",
-          "columns": [
-            {
-              "expression": "episode_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -331,102 +357,6 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.log_entries": {
-      "name": "log_entries",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "bigserial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "timestamp": {
-          "name": "timestamp",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "level": {
-          "name": "level",
-          "type": "varchar(10)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "logger_name": {
-          "name": "logger_name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "varchar(10)",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "idx_log_entries_timestamp": {
-          "name": "idx_log_entries_timestamp",
-          "columns": [
-            {
-              "expression": "timestamp",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_log_entries_level": {
-          "name": "idx_log_entries_level",
-          "columns": [
-            {
-              "expression": "level",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_log_entries_source": {
-          "name": "idx_log_entries_source",
-          "columns": [
-            {
-              "expression": "source",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -498,15 +428,15 @@
           "notNull": true,
           "default": "'Sam'"
         },
-        "voice_ref_a_path": {
-          "name": "voice_ref_a_path",
-          "type": "varchar(500)",
+        "tts_voice_a": {
+          "name": "tts_voice_a",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
         },
-        "voice_ref_b_path": {
-          "name": "voice_ref_b_path",
-          "type": "varchar(500)",
+        "tts_voice_b": {
+          "name": "tts_voice_b",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
         },
@@ -550,6 +480,73 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tts_voices": {
+      "name": "tts_voices",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "provider": {
+          "name": "provider",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ref_hash": {
+          "name": "ref_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "voice_id": {
+          "name": "voice_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_tts_voices_provider_ref": {
+          "name": "idx_tts_voices_provider_ref",
+          "columns": [
+            {
+              "expression": "provider",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ref_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

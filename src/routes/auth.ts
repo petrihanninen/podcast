@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import { URL } from "node:url";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { eq, sql } from "drizzle-orm";
@@ -17,8 +15,8 @@ import {
   safeTokenCompare,
   verifyShooToken,
 } from "../auth.js";
-import { createLogger } from "../log-handler.js";
-import { renderTemplate } from "../server.js";
+import { createLogger } from "../log.js";
+import { renderTemplate } from "../templates.js";
 
 const log = createLogger("auth-routes");
 
@@ -156,10 +154,6 @@ export async function authRoutes(app: FastifyInstance) {
 
         // Create default podcast settings
         await db.insert(podcastSettings).values({ userId: newUser.id });
-
-        // Create user's audio directory
-        const userAudioDir = path.join(settings.audioDir, newUser.id);
-        fs.mkdirSync(userAudioDir, { recursive: true });
 
         log.info("Registered new user: sub=%s, admin=%s", sub, isFirstUser);
 

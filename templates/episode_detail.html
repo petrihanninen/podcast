@@ -234,12 +234,12 @@
 </div>
 {% endif %}
 
-{% if episode.status == 'ready' and episode.audioFilename %}
+{% if episode.status == 'ready' and episode.audioUrl %}
 <div class="card" style="margin-block-end: var(--space-4);">
   <p class="card__title" data-collapsible>Listen</p>
   <div class="card__content">
     <audio id="podcast-player" controls preload="metadata">
-      <source src="/audio/{{ episode.userId }}/{{ episode.audioFilename }}" type="audio/mpeg">
+      <source src="{{ episode.audioUrl }}" type="audio/mpeg">
       Your browser does not support the audio element.
     </audio>
     <div class="speed-controls">

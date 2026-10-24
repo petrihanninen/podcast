@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../database.js";
 import { episodes } from "../schema.js";
 import { complete, getResearchModel } from "./llm-providers.js";
-import { createLogger } from "../log-handler.js";
+import { createLogger } from "../log.js";
 
 const log = createLogger("research");
 
@@ -28,7 +28,7 @@ const RESEARCH_LENGTH_CONFIG: Record<
   15: { durationDescription: "10-15 minute", maxTokens: 6000 },
   30: { durationDescription: "25-30 minute", maxTokens: 10000 },
   60: { durationDescription: "55-60 minute", maxTokens: 16000 },
-  120: { durationDescription: "2-hour", maxTokens: 24000 },
+  120: { durationDescription: "2-hour", maxTokens: 16000 },
 };
 
 export async function runResearch(

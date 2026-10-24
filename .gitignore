@@ -1,8 +1,15 @@
 .DS_Store
 node_modules/
 dist/
+.output/
+.nitro/
+.vercel/
+.workflow-data/
+src/generated/
 .env
+.env*.local
 *.mp3
 *.wav
 !voice_refs/*.wav
 __pycache__/
+/.swc

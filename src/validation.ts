@@ -1,5 +1,4 @@
 import { z } from "zod";
-import path from "node:path";
 
 // ─── Episode ─────────────────────────────────────────────────────────
 export const episodeCreateSchema = z.object({
@@ -22,15 +21,6 @@ export const episodeCreateJsonSchema = z.object({
 });
 
 // ─── Settings ────────────────────────────────────────────────────────
-function validateVoiceFilename(v: string | null | undefined): string | null {
-  if (v == null || v === "") return null;
-  const basename = path.basename(v);
-  if (basename !== v || v.includes("..")) {
-    throw new Error("Must be a simple filename, not a path");
-  }
-  return basename;
-}
-
 export const settingsUpdateSchema = z.object({
   title: z.string().max(200).nullish(),
   description: z.string().max(2000).nullish(),
@@ -39,8 +29,8 @@ export const settingsUpdateSchema = z.object({
   image_url: z.string().max(500).nullish(),
   host_a_name: z.string().max(50).nullish(),
   host_b_name: z.string().max(50).nullish(),
-  voice_ref_a_path: z.string().nullish().transform(validateVoiceFilename),
-  voice_ref_b_path: z.string().nullish().transform(validateVoiceFilename),
+  tts_voice_a: z.string().max(255).nullish(),
+  tts_voice_b: z.string().max(255).nullish(),
   transcript_tone_notes: z.array(z.string()).max(20).nullish(),
 });
 
