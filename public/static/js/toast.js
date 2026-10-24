@@ -2,9 +2,9 @@
  * Toast notifications — lightweight, auto-dismissing messages.
  *
  * Usage:
- *   1. Include CSS (already in components.css)
+ *   1. Include CSS (already in style.css)
  *   2. Include this file before </body>:
- *      <script src="/ui/js/toast.js"></script>
+ *      <script src="/static/js/toast.js"></script>
  *
  *   3. Show a toast:
  *      window.__toast("Link copied to clipboard");

@@ -2,9 +2,7 @@
 {% block title %}Sign in — Podcast{% endblock %}
 
 {% block content %}
-<div style="text-align: center; padding: var(--space-8);">
-  <p id="login-status" style="color: var(--color-text-muted);">Signing in…</p>
-</div>
+<p id="login-status" class="status-line">Signing in…</p>
 {% endblock %}
 
 {% block scripts %}
@@ -29,13 +27,11 @@
         // Token rejected — show error instead of auto-retrying (which causes infinite loop)
         const data = await res.json().catch(() => ({}));
         const el = document.getElementById('login-status');
-        el.style.color = 'var(--color-error, #e55)';
         el.innerHTML = 'Sign-in failed: ' + (data.error || 'Unknown error') +
-          '.<br><a href="#" id="retry-signin" style="color: var(--color-accent-text);">Try again</a>';
+          '.<br><a href="#" id="retry-signin">Try again</a>';
         document.getElementById('retry-signin').addEventListener('click', function(e) {
           e.preventDefault();
           window.Shoo.clearIdentity();
-          el.style.color = 'var(--color-text-muted)';
           el.textContent = 'Signing in…';
           var returnTo = '/auth/login?next=' + encodeURIComponent(nextUrl);
           window.Shoo.startSignIn({ returnTo: returnTo });

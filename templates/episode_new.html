@@ -1,114 +1,53 @@
 {% extends "base.html" %}
+{% set active = 'new' %}
 {% block title %}New Episode — Podcast{% endblock %}
 
-{% block head %}
-<style>
-  .length-options {
-    display: flex;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-    margin-block-start: var(--space-2);
-  }
-  .radio-card {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
-  }
-  .radio-card:has(input:checked) {
-    border-color: var(--color-accent);
-    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
-  }
-  .radio-card input { accent-color: var(--color-accent); }
-  .radio-card__label { font-size: var(--text-caption); font-weight: 500; }
-
-  .model-selects {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-3);
-  }
-  @media (max-width: 600px) {
-    .model-selects { grid-template-columns: 1fr; }
-  }
-  .model-select select {
-    width: 100%;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background: var(--color-bg-surface);
-    color: var(--color-text);
-    font-size: var(--text-body);
-    appearance: none;
-    -webkit-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23888' d='M1.4 0L6 4.6 10.6 0 12 1.4l-6 6-6-6z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    padding-right: 36px;
-  }
-  .model-select label {
-    display: block;
-    margin-block-end: var(--space-1);
-    font-weight: 600;
-    font-size: var(--text-caption);
-  }
-  .model-hint {
-    font-size: var(--text-overline);
-    color: var(--color-text-muted);
-    margin-block-start: 4px;
-  }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="page-header">
-  <h1>New Episode</h1>
+<div class="page-head">
+  <h1 class="page-title">New episode</h1>
 </div>
 
 {% if error %}
-<div class="error-box" style="margin-block-end: var(--space-4);">{{ error }}</div>
+<div class="form-error">{{ error }}</div>
 {% endif %}
 
 <form method="post" action="/" class="stack">
-  <div class="form-group">
-    <label for="topic">Topic</label>
-    <textarea id="topic" name="topic" class="textarea" rows="6" placeholder="What do you want to learn about? Describe the topic, angle, or specific questions you want explored..." required></textarea>
+  <div class="field">
+    <label for="topic" class="field-label">Topic</label>
+    <textarea id="topic" name="topic" class="input" rows="6" placeholder="What do you want to learn about? Describe the topic, angle, or specific questions you want explored..." required></textarea>
   </div>
 
-  <div class="form-group">
-    <label>Episode Length</label>
-    <div class="length-options">
-      <label class="radio-card">
+  <fieldset class="field">
+    <legend class="field-label">Length</legend>
+    <div class="choices">
+      <label class="choice">
         <input type="radio" name="target_length_minutes" value="15">
-        <span class="radio-card__label">15 min</span>
+        <span>15 min</span>
       </label>
-      <label class="radio-card">
+      <label class="choice">
         <input type="radio" name="target_length_minutes" value="30" checked>
-        <span class="radio-card__label">30 min</span>
+        <span>30 min</span>
       </label>
-      <label class="radio-card">
+      <label class="choice">
         <input type="radio" name="target_length_minutes" value="60">
-        <span class="radio-card__label">60 min</span>
+        <span>60 min</span>
       </label>
-      <label class="radio-card">
+      <label class="choice">
         <input type="radio" name="target_length_minutes" value="120">
-        <span class="radio-card__label">2 hours</span>
+        <span>2 hours</span>
       </label>
     </div>
-  </div>
+  </fieldset>
 
   {% if password_required %}
-  <div class="form-group">
-    <label for="password">Password</label>
+  <div class="field">
+    <label for="password" class="field-label">Password</label>
     <input type="password" id="password" name="password" class="input" placeholder="Required to create episodes" required>
   </div>
   {% endif %}
 
-  <div>
-    <button type="submit" class="btn btn--primary btn--lg">Create Episode</button>
+  <div class="actions">
+    <button type="submit" class="btn btn-primary btn-big">Create episode</button>
   </div>
 </form>
 
@@ -118,28 +57,23 @@
   const form = document.querySelector('form[action="/"]');
   if (!form) return;
 
-  // Restore saved settings on page load
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved) {
-      // Restore episode length radio
-      if (saved.target_length_minutes) {
-        const radio = form.querySelector(
-          `input[name="target_length_minutes"][value="${saved.target_length_minutes}"]`
-        );
-        if (radio) radio.checked = true;
-      }
-}
-  } catch (_) { /* ignore corrupt data */ }
+    if (saved && saved.target_length_minutes) {
+      const radio = form.querySelector(
+        `input[name="target_length_minutes"][value="${saved.target_length_minutes}"]`
+      );
+      if (radio) radio.checked = true;
+    }
+  } catch (_) {}
 
-  // Save settings on form submit
   form.addEventListener('submit', function () {
     try {
       const checkedRadio = form.querySelector('input[name="target_length_minutes"]:checked');
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         target_length_minutes: checkedRadio ? checkedRadio.value : null,
       }));
-    } catch (_) { /* storage full or unavailable */ }
+    } catch (_) {}
   });
 })();
 </script>

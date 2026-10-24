@@ -1,108 +1,67 @@
 {% extends "base.html" %}
+{% set active = 'episodes' %}
 {% block title %}Episodes — Podcast{% endblock %}
 
-{% block head %}
-<style>
-  .mini-pipeline {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    margin-block-start: var(--space-2);
-  }
-  .mini-pipeline__step {
-    height: 3px;
-    flex: 1;
-    border-radius: 2px;
-    background: var(--color-border);
-    transition: background 0.3s ease;
-  }
-  .mini-pipeline__step--completed {
-    background: var(--color-success);
-  }
-  .mini-pipeline__step--running {
-    background: var(--color-warning);
-    animation: mini-pulse 2s ease-in-out infinite;
-  }
-  .mini-pipeline__step--failed {
-    background: var(--color-error);
-  }
-  @keyframes mini-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-  .status-detail {
-    font-size: var(--text-overline);
-    color: var(--color-text-muted);
-    margin-block-start: var(--space-1);
-  }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="page-header flex flex--between">
-  <h1>Episodes</h1>
-  <a href="/" class="btn btn--primary">New Episode</a>
+<div class="page-head">
+  <h1 class="page-title">Episodes</h1>
+  <a href="/" class="btn btn-primary">New episode</a>
 </div>
 
 {% if episodes %}
-<div class="stack">
+<ul class="episodes">
   {% for ep in episodes %}
-  <div class="swipeable" data-swipeable data-episode-id="{{ ep.id }}">
+  <li class="swipeable" data-swipeable data-episode-id="{{ ep.id }}">
     {% if ep.status == 'failed' %}
     <div class="swipeable__action swipeable__action--start">Retry</div>
     {% endif %}
-    <div class="swipeable__content">
-      <a href="/episodes/{{ ep.id }}" class="episode-card">
-        <div class="card">
-          <div class="card__title">
-            <span>{{ ep.title }}</span>
-            <span class="badge {{ status_badge(ep.status) }}">{{ status_label(ep.status) }}</span>
-          </div>
-          <p class="card__body">{{ ep.topic | truncate(150) }}</p>
-          <div class="flex flex--between" style="margin-block-start: var(--space-2); align-items: center;">
-            <p class="episode-meta">
-              {% if ep.episodeNumber %}#{{ ep.episodeNumber }} · {% endif %}
-              {% if ep.audioDurationSeconds %}{{ format_duration(ep.audioDurationSeconds) }} · {% endif %}
-              {% if ep.audioSizeBytes %}{{ format_file_size(ep.audioSizeBytes) }} · {% endif %}
-              {{ ep.createdAt | date('%b %d, %Y') }}
-              {% if ep.publishedAt %} · Published {{ ep.publishedAt | date('%b %d') }}{% endif %}
-            </p>
-            <div class="swipeable__buttons">
-              {% if ep.status == 'failed' %}
-              <button class="btn btn--sm btn--ghost" onclick="event.stopPropagation(); retryEpisode('{{ ep.id }}')">Retry</button>
-              {% endif %}
-              <button class="btn btn--sm btn--ghost" style="color: var(--color-error);" onclick="event.stopPropagation(); deleteEpisode('{{ ep.id }}')">Delete</button>
-            </div>
-          </div>
-          {% if ep.status not in ['ready', 'failed'] %}
-          {% set steps = build_pipeline_info(ep) %}
-          <div class="mini-pipeline">
-            {% for step in steps %}
-            <div class="mini-pipeline__step mini-pipeline__step--{{ step.status }}"></div>
-            {% endfor %}
-          </div>
-          <p class="status-detail">
-            Step {{ get_current_step_index(ep) + 1 }} of 4
-            {% for step in steps %}{% if step.status == 'running' %} · {{ step.label }}{% endif %}{% endfor %}
-          </p>
+    <article class="swipeable__content episode">
+      <div class="episode-head">
+        <h2 class="episode-title"><a href="/episodes/{{ ep.id }}">{{ ep.title }}</a></h2>
+        <span class="tag" data-status="{{ ep.status }}">{{ status_label(ep.status) }}</span>
+      </div>
+      <p class="episode-topic">{{ ep.topic | truncate(150) }}</p>
+      {% if ep.status not in ['ready', 'failed'] %}
+      {% set steps = build_pipeline_info(ep) %}
+      <div class="progress">
+        <div class="mini-pipeline">
+          {% for step in steps %}
+          <div class="mini-pipeline-step" data-status="{{ step.status }}"></div>
+          {% endfor %}
+        </div>
+        <p class="meta">
+          <span>Step {{ get_current_step_index(ep) + 1 }}/4{% for step in steps %}{% if step.status == 'running' %} · {{ step.label }}{% endif %}{% endfor %}</span>
           {% set tts_prog = get_tts_progress(ep) %}
           {% if tts_prog %}
-          <p class="status-detail" style="margin-block-start: 2px;">
-            {{ tts_prog.segments_completed }}/{{ tts_prog.total_segments }} segments · {{ tts_prog.audio_duration_formatted }} generated
-          </p>
+          <span>{{ tts_prog.segments_completed }}/{{ tts_prog.total_segments }} segments · {{ tts_prog.audio_duration_formatted }}</span>
           {% endif %}
+        </p>
+      </div>
+      {% endif %}
+      <div class="episode-foot">
+        <p class="meta">
+          {% if ep.episodeNumber %}<span>#{{ ep.episodeNumber }}</span>{% endif %}
+          {% if ep.audioDurationSeconds %}<span>{{ format_duration(ep.audioDurationSeconds) }}</span>{% endif %}
+          {% if ep.audioSizeBytes %}<span>{{ format_file_size(ep.audioSizeBytes) }}</span>{% endif %}
+          <span>{{ ep.createdAt | date('%b %d, %Y') }}</span>
+        </p>
+        <div class="actions swipeable__buttons">
+          {% if ep.status == 'failed' %}
+          <button type="button" class="btn btn-small" onclick="retryEpisode('{{ ep.id }}')">Retry</button>
           {% endif %}
+          <button type="button" class="btn btn-small" onclick="deleteEpisode('{{ ep.id }}')">Delete</button>
         </div>
-      </a>
-    </div>
+      </div>
+    </article>
     <div class="swipeable__action swipeable__action--end">Delete</div>
-  </div>
+  </li>
   {% endfor %}
-</div>
+</ul>
 {% else %}
-<div class="empty-state">
-  <p style="font-size: var(--text-heading); margin-block-end: var(--space-2);">No episodes yet</p>
+<div class="empty">
+  <p class="empty-title">No episodes yet</p>
   <p>Create your first episode to get started.</p>
+  <a href="/" class="btn btn-primary">New episode</a>
 </div>
 {% endif %}
 {% endblock %}

@@ -1,143 +1,47 @@
 {% extends "base.html" %}
+{% set active = 'metrics' %}
 {% block title %}Metrics — Podcast{% endblock %}
-
-{% block head %}
-<style>
-  .metrics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--space-4);
-    margin-block-end: var(--space-6);
-  }
-  .stat-card {
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: var(--space-4) var(--space-5);
-  }
-  .stat-card__label {
-    font-size: var(--text-overline);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--color-text-muted);
-    margin-block-end: var(--space-1);
-  }
-  .stat-card__value {
-    font-family: var(--font-data, var(--font-body));
-    font-size: var(--text-heading);
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    color: var(--color-text);
-  }
-  .stat-card__sub {
-    font-size: var(--text-overline);
-    color: var(--color-text-muted);
-    margin-block-start: var(--space-1);
-  }
-  .section-title {
-    font-family: var(--font-display);
-    font-size: var(--text-subhead);
-    font-weight: 600;
-    margin-block-end: var(--space-4);
-    color: var(--color-text);
-  }
-  .table td.dim, .table .dim {
-    color: var(--color-text-muted);
-  }
-  .table td.mono {
-    font-family: var(--font-data, var(--font-body));
-    font-variant-numeric: tabular-nums;
-  }
-  .step-bar {
-    display: flex;
-    height: 6px;
-    border-radius: var(--radius-full);
-    overflow: hidden;
-    gap: 1px;
-    min-width: 120px;
-  }
-  .step-bar__seg {
-    height: 100%;
-    border-radius: var(--radius-full);
-  }
-  .step-bar__seg--research { background: var(--color-info); }
-  .step-bar__seg--transcript { background: var(--color-accent); }
-  .step-bar__seg--tts { background: var(--color-warning); }
-  .step-bar__seg--encode { background: var(--color-success); }
-  .legend {
-    display: flex;
-    gap: var(--space-4);
-    margin-block-start: var(--space-2);
-    margin-block-end: var(--space-4);
-    font-size: var(--text-overline);
-    color: var(--color-text-muted);
-  }
-  .legend__dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: var(--radius-full);
-    margin-inline-end: var(--space-1);
-  }
-  .no-data {
-    text-align: center;
-    padding: var(--space-8);
-    color: var(--color-text-muted);
-  }
-</style>
-{% endblock %}
+{% block page_class %}page-wide{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <h1>Metrics</h1>
+<div class="page-head">
+  <h1 class="page-title">Metrics</h1>
 </div>
 
-<div class="metrics-grid">
-  <div class="stat-card">
-    <div class="stat-card__label">Episodes</div>
-    <div class="stat-card__value">{{ totals.episodes_ready }}</div>
-    <div class="stat-card__sub">{{ totals.episodes }} total</div>
+<dl class="stats stats-big">
+  <div>
+    <dt>Episodes</dt>
+    <dd>{{ totals.episodes_ready }}<div class="stat-sub">{{ totals.episodes }} total</div></dd>
   </div>
-  <div class="stat-card">
-    <div class="stat-card__label">Total Cost</div>
-    <div class="stat-card__value">{{ totals.total_cost | money }}</div>
-    <div class="stat-card__sub">
-      LLM {{ totals.total_llm_cost | money }} · TTS {{ totals.total_tts_cost | money }}
-    </div>
+  <div>
+    <dt>Total cost</dt>
+    <dd>{{ totals.total_cost | money }}<div class="stat-sub">LLM {{ totals.total_llm_cost | money }} · TTS {{ totals.total_tts_cost | money }}</div></dd>
   </div>
-  <div class="stat-card">
-    <div class="stat-card__label">Tokens</div>
-    <div class="stat-card__value">{{ totals.total_output_tokens | intcomma }}</div>
-    <div class="stat-card__sub">
-      out · {{ totals.total_input_tokens | intcomma }} in · {{ totals.total_search_queries | intcomma }} searches
-    </div>
+  <div>
+    <dt>Tokens out</dt>
+    <dd>{{ totals.total_output_tokens | intcomma }}<div class="stat-sub">{{ totals.total_input_tokens | intcomma }} in · {{ totals.total_search_queries | intcomma }} searches</div></dd>
   </div>
-  <div class="stat-card">
-    <div class="stat-card__label">Audio Produced</div>
-    <div class="stat-card__value">{{ totals.total_audio_seconds | mmss }}</div>
-    <div class="stat-card__sub">total minutes</div>
+  <div>
+    <dt>Audio produced</dt>
+    <dd>{{ totals.total_audio_seconds | mmss }}<div class="stat-sub">total minutes</div></dd>
   </div>
-  <div class="stat-card">
-    <div class="stat-card__label">Total Gen Time</div>
-    <div class="stat-card__value">{{ totals.total_generation_seconds | mmss }}</div>
-    <div class="stat-card__sub">
-      {% if totals.total_tts_seconds > 0 %}{{ totals.total_tts_seconds | mmss }} in TTS{% endif %}
-    </div>
+  <div>
+    <dt>Total gen time</dt>
+    <dd>{{ totals.total_generation_seconds | mmss }}<div class="stat-sub">{% if totals.total_tts_seconds > 0 %}{{ totals.total_tts_seconds | mmss }} in TTS{% endif %}</div></dd>
   </div>
-</div>
+</dl>
 
-<p class="section-title">Per-Episode Breakdown</p>
+<h2 class="section-title">Per-episode breakdown</h2>
 
 <div class="legend">
-  <span><span class="legend__dot" style="background: var(--color-info);"></span>Research</span>
-  <span><span class="legend__dot" style="background: var(--color-accent);"></span>Transcript</span>
-  <span><span class="legend__dot" style="background: var(--color-warning);"></span>TTS</span>
-  <span><span class="legend__dot" style="background: var(--color-success);"></span>Encode</span>
+  <span><span class="swatch seg-research"></span>Research</span>
+  <span><span class="swatch seg-transcript"></span>Transcript</span>
+  <span><span class="swatch seg-tts"></span>TTS</span>
+  <span><span class="swatch seg-encode"></span>Encode</span>
 </div>
 
 {% if episodes.length %}
-<div class="table-wrapper" style="margin-block-end: var(--space-6);">
+<div class="table-wrap">
   <table class="table">
     <thead>
       <tr>
@@ -156,11 +60,11 @@
       {% for ep in episodes %}
       <tr>
         <td>
-          <a href="/episodes/{{ ep.id }}" style="color: var(--color-text); text-decoration: none;">
+          <a href="/episodes/{{ ep.id }}">
             {% if ep.episode_number %}#{{ ep.episode_number }} {% endif %}{{ ep.title | truncate(40) }}
           </a>
         </td>
-        <td class="num mono">
+        <td class="num">
           {% if ep.audio_duration_seconds %}{{ ep.audio_duration_seconds | mmss }}{% else %}<span class="dim">—</span>{% endif %}
         </td>
         <td>
@@ -169,7 +73,7 @@
             {% for step_name in ['research', 'transcript', 'tts', 'encode'] %}
               {% set w = ep.steps[step_name].wall_seconds %}
               {% if w %}
-              <div class="step-bar__seg step-bar__seg--{{ step_name }}"
+              <div class="step-bar-seg seg-{{ step_name }}"
                    style="flex: {{ w }};"
                    title="{{ step_name }}: {{ w | fixed(0) }}s"></div>
               {% endif %}
@@ -177,29 +81,29 @@
           </div>
           {% else %}<span class="dim">—</span>{% endif %}
         </td>
-        <td class="num mono">
+        <td class="num">
           {% if ep.steps.research.wall_seconds %}{{ ep.steps.research.wall_seconds | fixed(0) }}s{% else %}<span class="dim">—</span>{% endif %}
         </td>
-        <td class="num mono">
+        <td class="num">
           {% if ep.steps.transcript.wall_seconds %}{{ ep.steps.transcript.wall_seconds | fixed(0) }}s{% else %}<span class="dim">—</span>{% endif %}
         </td>
-        <td class="num mono">
+        <td class="num">
           {% if ep.steps.tts.wall_seconds %}
             {{ ep.steps.tts.wall_seconds | fixed(0) }}s
             {% if ep.steps.tts.realtime_factor %}
-              <span class="dim" style="font-size: var(--text-overline);">({{ ep.steps.tts.realtime_factor | fixed(1) }}x RT)</span>
+              <span class="dim">({{ ep.steps.tts.realtime_factor | fixed(1) }}x RT)</span>
             {% endif %}
           {% else %}<span class="dim">—</span>{% endif %}
         </td>
-        <td class="num mono">
+        <td class="num">
           {% if ep.steps.encode.wall_seconds %}{{ ep.steps.encode.wall_seconds | fixed(0) }}s{% else %}<span class="dim">—</span>{% endif %}
         </td>
-        <td class="num mono">
+        <td class="num">
           {% if ep.total_input_tokens %}
             {{ ep.total_input_tokens | intcomma }} / {{ ep.total_output_tokens | intcomma }}
           {% else %}<span class="dim">—</span>{% endif %}
         </td>
-        <td class="num mono">
+        <td class="num">
           {% if ep.total_cost > 0 %}{{ ep.total_cost | money }}{% else %}<span class="dim">—</span>{% endif %}
         </td>
       </tr>
@@ -209,8 +113,8 @@
 </div>
 
 {% if tts_episodes.length %}
-<p class="section-title">Voice Generation Performance</p>
-<div class="table-wrapper">
+<h2 class="section-title">Voice generation performance</h2>
+<div class="table-wrap">
   <table class="table">
     <thead>
       <tr>
@@ -232,12 +136,12 @@
           {% if ep.episode_number %}#{{ ep.episode_number }} {% endif %}{{ ep.title | truncate(40) }}
         </td>
         <td class="dim">{{ tts.model or '—' }}</td>
-        <td class="num mono">{{ tts.segment_count }}</td>
-        <td class="num mono">{% if tts.characters %}{{ tts.characters | intcomma }}{% else %}<span class="dim">—</span>{% endif %}</td>
-        <td class="num mono">{{ tts.duration_seconds | mmss }}</td>
-        <td class="num mono">{{ tts.audio_duration_seconds | mmss }}</td>
-        <td class="num mono">{{ tts.realtime_factor | fixed(2) }}x</td>
-        <td class="num mono">{% if tts.cost_usd %}{{ tts.cost_usd | money }}{% else %}<span class="dim">—</span>{% endif %}</td>
+        <td class="num">{{ tts.segment_count }}</td>
+        <td class="num">{% if tts.characters %}{{ tts.characters | intcomma }}{% else %}<span class="dim">—</span>{% endif %}</td>
+        <td class="num">{{ tts.duration_seconds | mmss }}</td>
+        <td class="num">{{ tts.audio_duration_seconds | mmss }}</td>
+        <td class="num">{{ tts.realtime_factor | fixed(2) }}x</td>
+        <td class="num">{% if tts.cost_usd %}{{ tts.cost_usd | money }}{% else %}<span class="dim">—</span>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -246,8 +150,8 @@
 {% endif %}
 
 {% else %}
-<div class="no-data">
-  <p style="font-size: var(--text-heading); margin-block-end: var(--space-2);">No episodes yet</p>
+<div class="empty">
+  <p class="empty-title">No episodes yet</p>
   <p>Generate an episode to see metrics here.</p>
 </div>
 {% endif %}

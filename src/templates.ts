@@ -6,7 +6,6 @@ import {
   formatFileSize,
   getCurrentStepIndex,
   getTtsProgress,
-  statusBadge,
   statusLabel,
 } from "./view-helpers.js";
 
@@ -20,7 +19,6 @@ class BundledLoader extends nunjucks.Loader {
 
 const env = new nunjucks.Environment(new BundledLoader(), { autoescape: true });
 
-env.addGlobal("status_badge", statusBadge);
 env.addGlobal("status_label", statusLabel);
 env.addGlobal("format_duration", formatDuration);
 env.addGlobal("format_file_size", formatFileSize);

@@ -1,75 +1,40 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#26106e">
   <title>{% block title %}Podcast{% endblock %}</title>
-  <script>
-    (function(){var t=localStorage.getItem('theme');if(t){document.documentElement.setAttribute('data-theme',t)}else if(window.matchMedia('(prefers-color-scheme:light)').matches){document.documentElement.setAttribute('data-theme','light')}else{document.documentElement.setAttribute('data-theme','dark')}})();
-  </script>
-  <link rel="stylesheet" href="/static/ui/css/reset.css">
-  <link rel="stylesheet" href="/static/ui/css/tokens.css">
-  <link rel="stylesheet" href="/static/ui/css/typography.css">
-  <link rel="stylesheet" href="/static/ui/css/components.css">
-  <link rel="stylesheet" href="/static/ui/css/layout.css">
-  <link rel="stylesheet" href="/static/ui/css/utilities.css">
-  <style>
-    body { background: var(--color-bg); min-height: 100dvh; }
-    main { padding-block: var(--space-6); }
-    .page-header { margin-block-end: var(--space-6); }
-    .page-header h1 { font-family: var(--font-display); font-size: var(--text-title); font-weight: 700; }
-    .episode-card { text-decoration: none; color: inherit; display: block; }
-    .episode-card .card__title { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-    .episode-meta { font-size: var(--text-caption); color: var(--color-text-muted); }
-    audio { width: 100%; margin-block-start: var(--space-3); }
-    .speed-controls { display: flex; align-items: center; gap: var(--space-3); margin-block-start: var(--space-3); }
-    .speed-controls__label { font-size: var(--text-caption); color: var(--color-text-muted); font-weight: 500; }
-    .speed-controls__buttons { display: flex; gap: var(--space-1); }
-    .speed-btn { background: transparent; color: var(--color-text-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-full); padding: var(--space-1) var(--space-3); font-family: var(--font-body); font-size: var(--text-caption); font-weight: 500; cursor: pointer; transition: all var(--transition-fast); line-height: 1.2; }
-    .speed-btn:hover { border-color: var(--color-text-secondary); color: var(--color-text); }
-    .speed-btn--active { background: var(--color-accent); color: oklch(100% 0 none); border-color: var(--color-accent); }
-    .speed-btn--active:hover { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
-    .transcript-segment { margin-block-end: var(--space-3); }
-    .transcript-segment .speaker { font-weight: 600; color: var(--color-accent-text); font-size: var(--text-caption); margin-block-end: var(--space-1); }
-    .transcript-segment .text { color: var(--color-text-secondary); }
-    .empty-state { text-align: center; padding: var(--space-8); color: var(--color-text-muted); }
-    .error-box { background: var(--color-error-subtle); border: 1px solid var(--color-error); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); color: var(--color-error); font-size: var(--text-caption); }
-  </style>
+  <link rel="stylesheet" href="/static/style.css">
   {% block head %}{% endblock %}
 </head>
 <body>
-  <nav class="nav">
-    <a href="/" class="nav__brand" style="text-decoration: none;">Podcast</a>
-    <ul class="nav__links">
-      <li><a href="/" class="nav__link">New</a></li>
-      <li><a href="/episodes" class="nav__link">Episodes</a></li>
-      {% if user is defined and user %}
-      <li><button id="copy-rss" class="nav__link" style="background:none;border:none;cursor:pointer;font:inherit;padding:inherit;" data-feed-token="{{ user.feedToken }}">RSS</button></li>
-      {% endif %}
-      <li><a href="/settings" class="nav__link">Settings</a></li>
-      {% if user is defined and user and user.isAdmin %}
-      <li><a href="/metrics" class="nav__link">Metrics</a></li>
-      {% endif %}
-      <li>
-        <button class="theme-toggle" aria-label="Toggle theme">
-          <span class="theme-toggle__icon"></span>
-        </button>
-      </li>
-      <li>
-        <form action="/auth/logout" method="post" style="display:inline;">
-          <button type="submit" class="nav__link" style="background:none;border:none;cursor:pointer;font:inherit;padding:inherit;">Logout</button>
+  <div class="site">
+    <header class="site-header">
+      <p class="site-title"><a href="/episodes">Podcast</a></p>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/" {% if active == 'new' %}aria-current="page"{% endif %}>New</a>
+        <a href="/episodes" {% if active == 'episodes' %}aria-current="page"{% endif %}>Episodes</a>
+        {% if user is defined and user %}
+        <button type="button" id="copy-rss" data-feed-token="{{ user.feedToken }}">RSS</button>
+        {% endif %}
+        <a href="/settings" {% if active == 'settings' %}aria-current="page"{% endif %}>Settings</a>
+        {% if user is defined and user and user.isAdmin %}
+        <a href="/metrics" {% if active == 'metrics' %}aria-current="page"{% endif %}>Metrics</a>
+        {% endif %}
+        <form action="/auth/logout" method="post">
+          <button type="submit">Logout</button>
         </form>
-      </li>
-    </ul>
-  </nav>
+      </nav>
+    </header>
 
-  <main class="container--narrow" style="margin-inline: auto; padding-inline: var(--space-5);">
-    {% block content %}{% endblock %}
-  </main>
+    <main class="page {% block page_class %}{% endblock %}">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
 
-  <script src="/static/ui/js/theme.js"></script>
-  <script src="/static/ui/js/toast.js"></script>
-  <script src="/static/ui/js/swipeable.js"></script>
+  <script src="/static/js/toast.js"></script>
+  <script src="/static/js/swipeable.js"></script>
   <script src="https://shoo.dev/shoo.js"></script>
   <script>
     (function() {
@@ -79,7 +44,7 @@
           var token = this.getAttribute('data-feed-token');
           var url = location.origin + '/feed/' + token + '.xml';
           navigator.clipboard.writeText(url).then(function() {
-            __toast('RSS feed URL copied to clipboard');
+            __toast('RSS feed URL copied');
           });
         });
       }

@@ -15,15 +15,6 @@ export const EPISODE_STATUS_FOR_STEP: Record<string, string> = {
   encode: "encoding",
 };
 
-export function statusBadge(status: string): string {
-  const mapping: Record<string, string> = {
-    ready: "badge--success",
-    failed: "badge--error",
-    pending: "badge--info",
-  };
-  return mapping[status] ?? "badge--warning";
-}
-
 export function statusLabel(status: string): string {
   const mapping: Record<string, string> = {
     pending: "Pending",
