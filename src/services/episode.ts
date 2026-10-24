@@ -4,42 +4,10 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import { db, type Db } from "../database.js";
 import { episodes, jobs } from "../schema.js";
 import { settings } from "../config.js";
+import { generateTitle } from "./transcript.js";
 import { createLogger } from "../log-handler.js";
 
 const log = createLogger("episode");
-
-export async function generateTitleFromTopic(topic: string): Promise<string> {
-  try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${settings.openaiApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-5-nano-2025-08-07",
-        messages: [
-          {
-            role: "user",
-            content: `Generate a short, catchy podcast episode title (max 8 words) for this topic. Output ONLY the title, no quotes or punctuation unless part of the title.\n\nTopic: ${topic}`,
-          },
-        ],
-        max_completion_tokens: 100,
-        temperature: 0.7,
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = (await res.json()) as any;
-    const title = data.choices[0].message.content
-      .trim()
-      .replace(/^["']|["']$/g, "");
-    return title ? title.slice(0, 200) : topic.slice(0, 100);
-  } catch {
-    log.warn("Failed to generate title from topic, using fallback");
-    return topic.length > 100 ? topic.slice(0, 100) : topic;
-  }
-}
 
 export async function createEpisode(
   topic: string,
@@ -49,7 +17,7 @@ export async function createEpisode(
   userId: string
 ) {
   if (!title) {
-    title = await generateTitleFromTopic(topic);
+    title = (await generateTitle(topic)) ?? topic.slice(0, 100);
   }
 
   return await db.transaction(async (tx) => {

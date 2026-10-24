@@ -18,21 +18,7 @@ import {
   retryEpisode,
 } from "../services/episode.js";
 import { getTtsProgress } from "../services/tts.js";
-import { getAllModelPricing } from "../services/llm-providers.js";
-
-const MODEL_PRICING = getAllModelPricing();
-const DEFAULT_PRICING = { input: 3.0, output: 15.0 };
-
-function calcCost(
-  inputTokens: number,
-  outputTokens: number,
-  model = ""
-): number {
-  const pricing = MODEL_PRICING[model] ?? DEFAULT_PRICING;
-  return (
-    (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000
-  );
-}
+import { parseMetrics, stepCost } from "../services/cost.js";
 
 function escapeLike(s: string): string {
   return s.replace(/[%_\\]/g, "\\$&");
@@ -234,7 +220,10 @@ export async function apiRoutes(app: FastifyInstance) {
       episodes_ready: 0,
       total_input_tokens: 0,
       total_output_tokens: 0,
+      total_search_queries: 0,
       total_cost: 0,
+      total_llm_cost: 0,
+      total_tts_cost: 0,
       total_audio_seconds: 0,
       total_generation_seconds: 0,
       total_tts_seconds: 0,
@@ -272,8 +261,10 @@ export async function apiRoutes(app: FastifyInstance) {
           continue;
         }
 
-        const metrics = JSON.parse(job.metricsJson);
+        const metrics = parseMetrics(job.metricsJson) ?? {};
         const stepData: Record<string, unknown> = { ...metrics };
+        const cost = stepCost(metrics);
+        stepData.cost_usd = cost;
 
         if (job.startedAt && job.completedAt) {
           const wall =
@@ -284,21 +275,20 @@ export async function apiRoutes(app: FastifyInstance) {
 
         (epData.steps as any)[job.step] = stepData;
 
-        const inputT = metrics.input_tokens ?? 0;
-        const outputT = metrics.output_tokens ?? 0;
+        const inputT = Number(metrics.input_tokens ?? 0);
+        const outputT = Number(metrics.output_tokens ?? 0);
         (epData.total_input_tokens as number) += inputT;
         (epData.total_output_tokens as number) += outputT;
         totals.total_input_tokens += inputT;
         totals.total_output_tokens += outputT;
-
-        (epData.total_cost as number) += calcCost(
-          inputT,
-          outputT,
-          metrics.model ?? ""
-        );
+        totals.total_search_queries += Number(metrics.search_queries ?? 0);
+        (epData.total_cost as number) += cost;
 
         if (job.step === "tts") {
-          totals.total_tts_seconds += metrics.duration_seconds ?? 0;
+          totals.total_tts_seconds += Number(metrics.duration_seconds ?? 0);
+          totals.total_tts_cost += cost;
+        } else {
+          totals.total_llm_cost += cost;
         }
       }
 

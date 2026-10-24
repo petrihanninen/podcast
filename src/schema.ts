@@ -152,6 +152,23 @@ export const podcastSettingsRelations = relations(
   })
 );
 
+// ─── TTS Voices ──────────────────────────────────────────────────────
+export const ttsVoices = pgTable(
+  "tts_voices",
+  {
+    id: uuid("id").primaryKey().defaultRandom().$defaultFn(() => randomUUID()),
+    provider: varchar("provider", { length: 50 }).notNull(),
+    refHash: varchar("ref_hash", { length: 64 }).notNull(),
+    voiceId: varchar("voice_id", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_tts_voices_provider_ref").on(table.provider, table.refHash),
+  ]
+);
+
 // ─── Log Entries ─────────────────────────────────────────────────────
 export const logEntries = pgTable(
   "log_entries",
@@ -178,3 +195,4 @@ export type Episode = typeof episodes.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type PodcastSettings = typeof podcastSettings.$inferSelect;
 export type LogEntry = typeof logEntries.$inferSelect;
+export type TtsVoice = typeof ttsVoices.$inferSelect;

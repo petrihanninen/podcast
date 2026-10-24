@@ -42,7 +42,7 @@
     margin-block-end: var(--space-4);
     color: var(--color-text);
   }
-  .table td.dim {
+  .table td.dim, .table .dim {
     color: var(--color-text-muted);
   }
   .table td.mono {
@@ -93,7 +93,6 @@
   <h1>Metrics</h1>
 </div>
 
-{# ---------- Summary cards ---------- #}
 <div class="metrics-grid">
   <div class="stat-card">
     <div class="stat-card__label">Episodes</div>
@@ -101,38 +100,33 @@
     <div class="stat-card__sub">{{ totals.episodes }} total</div>
   </div>
   <div class="stat-card">
-    <div class="stat-card__label">API Cost</div>
-    <div class="stat-card__value">${{ "%.4f"|format(totals.total_cost) }}</div>
+    <div class="stat-card__label">Total Cost</div>
+    <div class="stat-card__value">{{ totals.total_cost | money }}</div>
     <div class="stat-card__sub">
-      {{ "{:,}".format(totals.total_input_tokens) }} in /
-      {{ "{:,}".format(totals.total_output_tokens) }} out tokens
+      LLM {{ totals.total_llm_cost | money }} · TTS {{ totals.total_tts_cost | money }}
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">Tokens</div>
+    <div class="stat-card__value">{{ totals.total_output_tokens | intcomma }}</div>
+    <div class="stat-card__sub">
+      out · {{ totals.total_input_tokens | intcomma }} in · {{ totals.total_search_queries | intcomma }} searches
     </div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Audio Produced</div>
-    <div class="stat-card__value">
-      {% set mins = totals.total_audio_seconds // 60 %}
-      {% set secs = totals.total_audio_seconds % 60 %}
-      {{ mins }}:{{ "%02d"|format(secs) }}
-    </div>
+    <div class="stat-card__value">{{ totals.total_audio_seconds | mmss }}</div>
     <div class="stat-card__sub">total minutes</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Total Gen Time</div>
-    <div class="stat-card__value">
-      {% set gen_mins = (totals.total_generation_seconds // 60)|int %}
-      {% set gen_secs = (totals.total_generation_seconds % 60)|int %}
-      {{ gen_mins }}:{{ "%02d"|format(gen_secs) }}
-    </div>
+    <div class="stat-card__value">{{ totals.total_generation_seconds | mmss }}</div>
     <div class="stat-card__sub">
-      {% if totals.total_tts_seconds > 0 %}
-        {{ "%.0f"|format(totals.total_tts_seconds) }}s in TTS
-      {% endif %}
+      {% if totals.total_tts_seconds > 0 %}{{ totals.total_tts_seconds | mmss }} in TTS{% endif %}
     </div>
   </div>
 </div>
 
-{# ---------- Per-episode table ---------- #}
 <p class="section-title">Per-Episode Breakdown</p>
 
 <div class="legend">
@@ -142,7 +136,7 @@
   <span><span class="legend__dot" style="background: var(--color-success);"></span>Encode</span>
 </div>
 
-{% if episodes %}
+{% if episodes.length %}
 <div class="table-wrapper" style="margin-block-end: var(--space-6);">
   <table class="table">
     <thead>
@@ -167,53 +161,46 @@
           </a>
         </td>
         <td class="num mono">
-          {% if ep.audio_duration_seconds %}
-            {{ ep.audio_duration_seconds // 60 }}:{{ "%02d"|format(ep.audio_duration_seconds % 60) }}
-          {% else %}<span class="dim">—</span>{% endif %}
+          {% if ep.audio_duration_seconds %}{{ ep.audio_duration_seconds | mmss }}{% else %}<span class="dim">—</span>{% endif %}
         </td>
         <td>
           {% if ep.total_duration_seconds > 0 %}
-          <div class="step-bar" title="{{ '%.0f'|format(ep.total_duration_seconds) }}s total">
+          <div class="step-bar" title="{{ ep.total_duration_seconds | fixed(0) }}s total">
             {% for step_name in ['research', 'transcript', 'tts', 'encode'] %}
-              {% set s = ep.steps.get(step_name, {}) %}
-              {% set w = s.get('wall_seconds', 0) %}
-              {% if w > 0 %}
+              {% set w = ep.steps[step_name].wall_seconds %}
+              {% if w %}
               <div class="step-bar__seg step-bar__seg--{{ step_name }}"
                    style="flex: {{ w }};"
-                   title="{{ step_name }}: {{ '%.0f'|format(w) }}s"></div>
+                   title="{{ step_name }}: {{ w | fixed(0) }}s"></div>
               {% endif %}
             {% endfor %}
           </div>
           {% else %}<span class="dim">—</span>{% endif %}
         </td>
         <td class="num mono">
-          {% set rs = ep.steps.get('research', {}) %}
-          {% if rs.get('wall_seconds') %}{{ "%.0f"|format(rs.wall_seconds) }}s{% else %}<span class="dim">—</span>{% endif %}
+          {% if ep.steps.research.wall_seconds %}{{ ep.steps.research.wall_seconds | fixed(0) }}s{% else %}<span class="dim">—</span>{% endif %}
         </td>
         <td class="num mono">
-          {% set ts = ep.steps.get('transcript', {}) %}
-          {% if ts.get('wall_seconds') %}{{ "%.0f"|format(ts.wall_seconds) }}s{% else %}<span class="dim">—</span>{% endif %}
+          {% if ep.steps.transcript.wall_seconds %}{{ ep.steps.transcript.wall_seconds | fixed(0) }}s{% else %}<span class="dim">—</span>{% endif %}
         </td>
         <td class="num mono">
-          {% set tts = ep.steps.get('tts', {}) %}
-          {% if tts.get('wall_seconds') %}
-            {{ "%.0f"|format(tts.wall_seconds) }}s
-            {% if tts.get('realtime_factor') %}
-              <span class="dim" style="font-size: var(--text-overline);">({{ "%.1f"|format(tts.realtime_factor) }}x RT)</span>
+          {% if ep.steps.tts.wall_seconds %}
+            {{ ep.steps.tts.wall_seconds | fixed(0) }}s
+            {% if ep.steps.tts.realtime_factor %}
+              <span class="dim" style="font-size: var(--text-overline);">({{ ep.steps.tts.realtime_factor | fixed(1) }}x RT)</span>
             {% endif %}
           {% else %}<span class="dim">—</span>{% endif %}
         </td>
         <td class="num mono">
-          {% set enc = ep.steps.get('encode', {}) %}
-          {% if enc.get('wall_seconds') %}{{ "%.0f"|format(enc.wall_seconds) }}s{% else %}<span class="dim">—</span>{% endif %}
+          {% if ep.steps.encode.wall_seconds %}{{ ep.steps.encode.wall_seconds | fixed(0) }}s{% else %}<span class="dim">—</span>{% endif %}
         </td>
         <td class="num mono">
           {% if ep.total_input_tokens %}
-            {{ "{:,}".format(ep.total_input_tokens) }} / {{ "{:,}".format(ep.total_output_tokens) }}
+            {{ ep.total_input_tokens | intcomma }} / {{ ep.total_output_tokens | intcomma }}
           {% else %}<span class="dim">—</span>{% endif %}
         </td>
         <td class="num mono">
-          {% if ep.total_cost > 0 %}${{ "%.4f"|format(ep.total_cost) }}{% else %}<span class="dim">—</span>{% endif %}
+          {% if ep.total_cost > 0 %}{{ ep.total_cost | money }}{% else %}<span class="dim">—</span>{% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -221,46 +208,36 @@
   </table>
 </div>
 
-{# ---------- TTS performance detail ---------- #}
-{% set tts_episodes = [] %}
-{% for ep in episodes %}
-  {% if ep.steps.get('tts', {}).get('segment_count') %}
-    {% if tts_episodes.append(ep) %}{% endif %}
-  {% endif %}
-{% endfor %}
-
-{% if tts_episodes %}
+{% if tts_episodes.length %}
 <p class="section-title">Voice Generation Performance</p>
 <div class="table-wrapper">
   <table class="table">
     <thead>
       <tr>
         <th>Episode</th>
+        <th>Model</th>
         <th class="num">Segments</th>
+        <th class="num">Characters</th>
         <th class="num">TTS Time</th>
         <th class="num">Audio Duration</th>
-        <th class="num">Avg/Segment</th>
         <th class="num">Realtime Factor</th>
+        <th class="num">Cost</th>
       </tr>
     </thead>
     <tbody>
       {% for ep in tts_episodes %}
-      {% set tts = ep.steps.get('tts', {}) %}
+      {% set tts = ep.steps.tts %}
       <tr>
         <td>
           {% if ep.episode_number %}#{{ ep.episode_number }} {% endif %}{{ ep.title | truncate(40) }}
         </td>
-        <td class="num mono">{{ tts.get('segment_count', '—') }}</td>
-        <td class="num mono">
-          {% set d = tts.get('duration_seconds', 0) %}
-          {{ (d // 60)|int }}:{{ "%02d"|format((d % 60)|int) }}
-        </td>
-        <td class="num mono">
-          {% set ad = tts.get('audio_duration_seconds', 0) %}
-          {{ (ad // 60)|int }}:{{ "%02d"|format((ad % 60)|int) }}
-        </td>
-        <td class="num mono">{{ "%.1f"|format(tts.get('avg_segment_seconds', 0)) }}s</td>
-        <td class="num mono">{{ "%.2f"|format(tts.get('realtime_factor', 0)) }}x</td>
+        <td class="dim">{{ tts.model or '—' }}</td>
+        <td class="num mono">{{ tts.segment_count }}</td>
+        <td class="num mono">{% if tts.characters %}{{ tts.characters | intcomma }}{% else %}<span class="dim">—</span>{% endif %}</td>
+        <td class="num mono">{{ tts.duration_seconds | mmss }}</td>
+        <td class="num mono">{{ tts.audio_duration_seconds | mmss }}</td>
+        <td class="num mono">{{ tts.realtime_factor | fixed(2) }}x</td>
+        <td class="num mono">{% if tts.cost_usd %}{{ tts.cost_usd | money }}{% else %}<span class="dim">—</span>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>

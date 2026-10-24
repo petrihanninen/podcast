@@ -1,7 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "../database.js";
 import { episodes, podcastSettings } from "../schema.js";
-import { getClient } from "./anthropic-client.js";
 import { complete, getTranscriptModel } from "./llm-providers.js";
 import { createLogger } from "../log-handler.js";
 
@@ -16,10 +15,10 @@ const TRANSCRIPT_LENGTH_CONFIG: Record<
     maxTokens: number;
   }
 > = {
-  15: { wordTarget: 2000, duration: "12-15", notesTruncation: 8000, maxTokens: 8192 },
-  30: { wordTarget: 4000, duration: "25-30", notesTruncation: 12000, maxTokens: 8192 },
-  60: { wordTarget: 8000, duration: "55-60", notesTruncation: 24000, maxTokens: 16384 },
-  120: { wordTarget: 16000, duration: "110-120", notesTruncation: 40000, maxTokens: 32768 },
+  15: { wordTarget: 2000, duration: "12-15", notesTruncation: 40000, maxTokens: 12000 },
+  30: { wordTarget: 4000, duration: "25-30", notesTruncation: 60000, maxTokens: 20000 },
+  60: { wordTarget: 8000, duration: "55-60", notesTruncation: 100000, maxTokens: 36000 },
+  120: { wordTarget: 16000, duration: "110-120", notesTruncation: 160000, maxTokens: 64000 },
 };
 
 export const DEFAULT_TONE_NOTES: string[] = [
@@ -44,6 +43,7 @@ Guidelines for the conversation:
 {tone_notes}\
 - Target {{word_target}} words total (roughly {{duration}} minutes at speaking pace)
 - Don't use stage directions or descriptions — only spoken dialogue
+- Write for text-to-speech: spell out numbers and abbreviations the way a person would say them, and avoid URLs, markdown and special symbols
 
 Output ONLY the JSON array, no other text.`;
 
@@ -66,9 +66,7 @@ function buildSystemPrompt(
 }
 
 function repairJson(text: string): string {
-  // Remove trailing commas before ] or }
   text = text.replace(/,\s*([}\]])/g, "$1");
-  // Remove any non-JSON text before the first [ or after the last ]
   const start = text.indexOf("[");
   const end = text.lastIndexOf("]");
   if (start !== -1 && end !== -1 && end > start) {
@@ -77,24 +75,75 @@ function repairJson(text: string): string {
   return text;
 }
 
-function parseJsonWithRepair(text: string): unknown[] {
-  try {
-    return JSON.parse(text);
-  } catch (originalError) {
-    log.warn("Initial JSON parse failed — attempting repair");
+export function parseSegments(raw: string): Array<{ speaker: string; text: string }> {
+  let text = raw.trim();
+  if (text.startsWith("```")) {
+    text = text
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("```"))
+      .join("\n");
   }
+
+  let parsed: unknown;
   try {
-    return JSON.parse(repairJson(text));
+    parsed = JSON.parse(text);
   } catch {
-    log.warn("Repaired JSON still invalid — re-raising original error");
+    log.warn("Initial JSON parse failed — attempting repair");
+    try {
+      parsed = JSON.parse(repairJson(text));
+    } catch {
+      throw new Error("Failed to parse transcript JSON");
+    }
   }
-  throw new Error("Failed to parse transcript JSON");
+
+  if (!Array.isArray(parsed) && parsed && typeof parsed === "object") {
+    const inner = Object.values(parsed as Record<string, unknown>).find(Array.isArray);
+    if (inner) parsed = inner;
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error("Invalid transcript format: expected non-empty JSON array");
+  }
+
+  return parsed.map((seg: any) => {
+    if (!seg || typeof seg.speaker !== "string" || typeof seg.text !== "string" || !seg.text.trim()) {
+      throw new Error(`Invalid segment format: ${JSON.stringify(seg)}`);
+    }
+    return { speaker: seg.speaker.trim(), text: seg.text.trim() };
+  });
+}
+
+export async function generateTitle(
+  topic: string,
+  transcriptExcerpt?: string
+): Promise<string | null> {
+  const modelInfo = getTranscriptModel();
+  const context = transcriptExcerpt
+    ? `Topic: ${topic}\n\nTranscript excerpt:\n${transcriptExcerpt}`
+    : `Topic: ${topic}`;
+  try {
+    const response = await complete(modelInfo, {
+      system:
+        "You write short, catchy podcast episode titles (max 8 words). " +
+        "Output ONLY the title: no quotes, no explanation.",
+      user: `Write an episode title for this podcast episode.\n\n${context}`,
+      maxTokens: 2000,
+      effort: "low",
+    });
+    const title = response.text
+      .trim()
+      .split("\n")[0]
+      .replace(/^["'“”]+|["'“”]+$/g, "")
+      .trim();
+    return title ? title.slice(0, 200) : null;
+  } catch (e: any) {
+    log.warn("Title generation failed: %s", e.message);
+    return null;
+  }
 }
 
 export async function generateTranscript(
   episodeId: string
 ): Promise<Record<string, unknown>> {
-  // Read episode data and settings
   const [episode] = await db
     .select()
     .from(episodes)
@@ -153,77 +202,42 @@ ${notes}
 The two hosts are ${hostA} and ${hostB}. Remember to output ONLY the JSON array.`;
 
   const t0 = performance.now();
-  const response = await complete(
-    modelInfo,
+  const response = await complete(modelInfo, {
     system,
-    userMessage,
-    config.maxTokens,
-    1.0,
-    false
-  );
+    user: userMessage,
+    maxTokens: config.maxTokens,
+  });
   const apiDuration = (performance.now() - t0) / 1000;
 
-  // Parse transcript JSON
-  let transcriptText = response.text.trim();
-  if (transcriptText.startsWith("```")) {
-    const lines = transcriptText.split("\n");
-    transcriptText = lines
-      .filter((l) => !l.trim().startsWith("```"))
-      .join("\n");
-  }
-
-  const segments = parseJsonWithRepair(transcriptText) as Array<{
-    speaker: string;
-    text: string;
-  }>;
-  if (!Array.isArray(segments) || segments.length === 0) {
-    throw new Error(
-      "Invalid transcript format: expected non-empty JSON array"
+  const segments = parseSegments(response.text);
+  const knownSpeakers = new Set([hostA, hostB]);
+  const unknown = segments.filter((s) => !knownSpeakers.has(s.speaker));
+  if (unknown.length > 0) {
+    log.warn(
+      "Transcript for episode %s has %d segment(s) with unknown speakers (e.g. %s); they will use host B's voice",
+      episodeId,
+      unknown.length,
+      unknown[0].speaker
     );
   }
 
-  for (const seg of segments) {
-    if (!seg.speaker || !seg.text) {
-      throw new Error(`Invalid segment format: ${JSON.stringify(seg)}`);
-    }
-  }
-
-  // Save transcript
   await db
     .update(episodes)
     .set({ transcript: JSON.stringify(segments) })
     .where(eq(episodes.id, episodeId));
 
-  // Generate a refined title
-  try {
-    const client = getClient();
-    const titleResponse = await client.messages.create({
-      model: "claude-haiku-4-20250414",
-      max_tokens: 100,
-      messages: [
-        {
-          role: "user",
-          content:
-            "Based on this podcast transcript, generate a short, catchy episode " +
-            "title (max 8 words). Output ONLY the title, no quotes.\n\n" +
-            `Topic: ${episode.topic}\n\nTranscript excerpt:\n${transcriptText.slice(0, 3000)}`,
-        },
-      ],
-    });
-    const newTitle = (
-      titleResponse.content[0] as { text: string }
-    ).text
-      .trim()
-      .replace(/^["']|["']$/g, "");
-    if (newTitle) {
-      await db
-        .update(episodes)
-        .set({ title: newTitle.slice(0, 200) })
-        .where(eq(episodes.id, episodeId));
-      log.info("Refined title for episode %s: %s", episodeId, newTitle);
-    }
-  } catch {
-    log.warn("Failed to refine episode title, keeping original");
+  const excerpt = segments
+    .slice(0, 12)
+    .map((s) => `${s.speaker}: ${s.text}`)
+    .join("\n")
+    .slice(0, 3000);
+  const newTitle = await generateTitle(episode.topic, excerpt);
+  if (newTitle) {
+    await db
+      .update(episodes)
+      .set({ title: newTitle })
+      .where(eq(episodes.id, episodeId));
+    log.info("Refined title for episode %s: %s", episodeId, newTitle);
   }
 
   const wordCount = segments.reduce(
@@ -235,18 +249,20 @@ The two hosts are ${hostA} and ${hostB}. Remember to output ONLY the JSON array.
     provider: modelInfo.provider,
     input_tokens: response.inputTokens,
     output_tokens: response.outputTokens,
+    cost_usd: response.costUsd,
     duration_seconds: Math.round(apiDuration * 100) / 100,
     segment_count: segments.length,
     word_count: wordCount,
   };
 
   log.info(
-    "Transcript generated for episode %s: %d segments, %d words, %d in/%d out tokens, %.1fs",
+    "Transcript generated for episode %s: %d segments, %d words, %d in/%d out tokens, $%s, %.1fs",
     episodeId,
     segments.length,
     wordCount,
     metrics.input_tokens,
     metrics.output_tokens,
+    metrics.cost_usd.toFixed(4),
     apiDuration
   );
 
