@@ -5,7 +5,7 @@ import { episodes, podcastSettings, ttsVoices } from "../schema.js";
 import { settings } from "../config.js";
 import { createLogger } from "../log.js";
 import { voiceRefs } from "../generated/voice-refs.js";
-import { parseWav, wavDurationSeconds } from "./wav.js";
+import { concatWavs, parseWav, wavDurationSeconds } from "./wav.js";
 import { encodeClipsToMp3 } from "./mp3.js";
 import { putObject } from "./storage.js";
 import { addJobProgress, completeJob, setJobProgressTotal, startJob } from "./jobs.js";
@@ -15,25 +15,48 @@ const log = createLogger("tts");
 
 export interface TtsModelInfo {
   id: string;
-  provider: "deepinfra";
+  provider: "deepinfra" | "gemini";
   modelId: string;
   displayName: string;
+  // Maximum characters per request
   maxChars: number;
-  pricePerMillionChars: number;
+  pricing: {
+    perMillionChars?: number;
+    inputPerMillionTokens?: number;
+    outputPerMillionTokens?: number;
+  };
 }
 
+// List prices, October 2026. Gemini TTS prices double on 2027-01-01.
 export const TTS_MODELS: Record<string, TtsModelInfo> = {
+  "gemini-flash-lite-tts": {
+    id: "gemini-flash-lite-tts",
+    provider: "gemini",
+    modelId: "gemini-3.8-flash-lite-tts",
+    displayName: "Gemini 3.8 Flash-Lite TTS",
+    maxChars: 3000,
+    pricing: { inputPerMillionTokens: 0.5, outputPerMillionTokens: 6.0 },
+  },
+  "gemini-flash-tts": {
+    id: "gemini-flash-tts",
+    provider: "gemini",
+    modelId: "gemini-3.8-flash-tts",
+    displayName: "Gemini 3.8 Flash TTS",
+    maxChars: 3000,
+    pricing: { inputPerMillionTokens: 0.5, outputPerMillionTokens: 9.0 },
+  },
   "chatterbox-turbo": {
     id: "chatterbox-turbo",
     provider: "deepinfra",
     modelId: "ResembleAI/chatterbox-turbo",
     displayName: "Chatterbox Turbo (DeepInfra)",
     maxChars: 4500,
-    pricePerMillionChars: 1.0,
+    pricing: { perMillionChars: 1.0 },
   },
 };
 
-export const DEFAULT_TTS_MODEL = "chatterbox-turbo";
+export const DEFAULT_TTS_MODEL = "gemini-flash-lite-tts";
+export const DEFAULT_GEMINI_VOICES = { hostA: "Puck", hostB: "Kore" };
 export const SEGMENT_GAP_SECONDS = 0.3;
 
 export function getTtsModel(modelKey?: string | null): TtsModelInfo {
@@ -56,6 +79,8 @@ export interface TtsBatch {
   total: number;
   model: string;
   pieces: Piece[];
+  hostA: string;
+  hostB: string;
   voiceA: string | null;
   voiceB: string | null;
 }
@@ -93,6 +118,23 @@ export function splitLongText(text: string, maxChars: number): string[] {
   }
   if (current.trim()) chunks.push(current.trim());
   return chunks.filter(Boolean);
+}
+
+export function groupByChars(pieces: Piece[], maxChars: number): Piece[][] {
+  const groups: Piece[][] = [];
+  let current: Piece[] = [];
+  let size = 0;
+  for (const piece of pieces) {
+    if (current.length > 0 && size + piece.text.length > maxChars) {
+      groups.push(current);
+      current = [];
+      size = 0;
+    }
+    current.push(piece);
+    size += piece.text.length;
+  }
+  if (current.length > 0) groups.push(current);
+  return groups;
 }
 
 export function chunkArray<T>(items: T[], size: number): T[][] {
@@ -201,6 +243,74 @@ interface ClipResult {
   costUsd: number | null;
 }
 
+// ─── Gemini TTS (native two-speaker dialogue, prebuilt voices) ───────
+
+async function synthesizeGemini(model: TtsModelInfo, group: Piece[], batch: TtsBatch): Promise<ClipResult> {
+  if (!settings.googleApiKey) throw new Error("GOOGLE_API_KEY is not configured");
+  const payload = {
+    model: model.modelId,
+    input: [
+      {
+        type: "user_input",
+        content: group.map((piece) => ({
+          type: "text",
+          text: piece.text,
+          annotations: [{ type: "speech_metadata", speaker: piece.isHostA ? batch.hostA : batch.hostB }],
+        })),
+      },
+    ],
+    response_format: { type: "audio" },
+    generation_config: {
+      speech_config: {
+        mode: "conversational",
+        speakers: [
+          { speaker: batch.hostA, voice: batch.voiceA ?? DEFAULT_GEMINI_VOICES.hostA },
+          { speaker: batch.hostB, voice: batch.voiceB ?? DEFAULT_GEMINI_VOICES.hostB },
+        ],
+      },
+    },
+    store: false,
+  };
+
+  const res = await fetchWithRetry(
+    `${settings.geminiBaseUrl}/interactions`,
+    {
+      method: "POST",
+      headers: { "x-goog-api-key": settings.googleApiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+    `Gemini ${model.modelId}`
+  );
+  const data = (await res.json()) as {
+    status?: string;
+    steps?: Array<{ type: string; content?: Array<{ type: string; data?: string }> }>;
+    usage?: { total_input_tokens?: number; total_output_tokens?: number };
+  };
+
+  const audio: Buffer[] = [];
+  for (const step of data.steps ?? []) {
+    if (step.type !== "model_output") continue;
+    for (const block of step.content ?? []) {
+      if (block.type === "audio" && block.data) audio.push(decodeAudioField(block.data));
+    }
+  }
+  if (audio.length === 0) {
+    throw new Error(
+      `Gemini TTS returned no audio (status=${data.status ?? "unknown"}): ${JSON.stringify(data).slice(0, 500)}`
+    );
+  }
+
+  const inputTokens = data.usage?.total_input_tokens ?? 0;
+  const outputTokens = data.usage?.total_output_tokens ?? 0;
+  const p = model.pricing;
+  return {
+    wav: audio.length === 1 ? audio[0] : concatWavs(audio, 0).wav,
+    chars: group.reduce((sum, piece) => sum + piece.text.length, 0),
+    costUsd:
+      (inputTokens * (p.inputPerMillionTokens ?? 0) + outputTokens * (p.outputPerMillionTokens ?? 0)) / 1_000_000,
+  };
+}
+
 async function synthesizeDeepinfra(model: TtsModelInfo, text: string, voiceId: string | null): Promise<ClipResult> {
   const body: Record<string, unknown> = { text, response_format: "wav" };
   if (voiceId) body.voice_id = voiceId;
@@ -243,6 +353,7 @@ export async function planTts(episodeId: string): Promise<{ batches: TtsBatch[];
     .where(eq(podcastSettings.userId, episode.userId))
     .limit(1);
   const hostA = psettings?.hostAName ?? "Alex";
+  const hostB = psettings?.hostBName ?? "Sam";
   const model = getTtsModel();
 
   await startJob(episodeId, "tts");
@@ -255,8 +366,15 @@ export async function planTts(episodeId: string): Promise<{ batches: TtsBatch[];
     }
   }
 
-  const voiceA = await resolveVoice(psettings?.ttsVoiceA, "host_a.wav", "host-a");
-  const voiceB = await resolveVoice(psettings?.ttsVoiceB, "host_b.wav", "host-b");
+  let voiceA: string | null;
+  let voiceB: string | null;
+  if (model.provider === "gemini") {
+    voiceA = psettings?.ttsVoiceA?.trim() || DEFAULT_GEMINI_VOICES.hostA;
+    voiceB = psettings?.ttsVoiceB?.trim() || DEFAULT_GEMINI_VOICES.hostB;
+  } else {
+    voiceA = await resolveVoice(psettings?.ttsVoiceA, "host_a.wav", "host-a");
+    voiceB = await resolveVoice(psettings?.ttsVoiceB, "host_b.wav", "host-b");
+  }
 
   const groups = chunkArray(pieces, Math.max(1, settings.ttsBatchSize));
   const batches: TtsBatch[] = groups.map((group, index) => ({
@@ -265,6 +383,8 @@ export async function planTts(episodeId: string): Promise<{ batches: TtsBatch[];
     total: groups.length,
     model: model.id,
     pieces: group,
+    hostA,
+    hostB,
     voiceA,
     voiceB,
   }));
@@ -284,9 +404,14 @@ export async function planTts(episodeId: string): Promise<{ batches: TtsBatch[];
 export async function synthesizeBatch(batch: TtsBatch): Promise<TtsBatchResult> {
   const model = getTtsModel(batch.model);
   const t0 = performance.now();
-  const clips = await mapWithConcurrency(batch.pieces, settings.ttsConcurrency, (piece) =>
-    synthesizeDeepinfra(model, piece.text, piece.isHostA ? batch.voiceA : batch.voiceB)
-  );
+  const clips =
+    model.provider === "gemini"
+      ? await mapWithConcurrency(groupByChars(batch.pieces, model.maxChars), settings.ttsConcurrency, (group) =>
+          synthesizeGemini(model, group, batch)
+        )
+      : await mapWithConcurrency(batch.pieces, settings.ttsConcurrency, (piece) =>
+          synthesizeDeepinfra(model, piece.text, piece.isHostA ? batch.voiceA : batch.voiceB)
+        );
   const requestSeconds = (performance.now() - t0) / 1000;
 
   const encoded = await encodeClipsToMp3(
@@ -301,7 +426,7 @@ export async function synthesizeBatch(batch: TtsBatch): Promise<TtsBatchResult> 
   const reported = clips.every((c) => c.costUsd !== null)
     ? clips.reduce((sum, c) => sum + (c.costUsd ?? 0), 0)
     : null;
-  const costUsd = reported ?? (chars * model.pricePerMillionChars) / 1_000_000;
+  const costUsd = reported ?? (chars * (model.pricing.perMillionChars ?? 0)) / 1_000_000;
 
   await addJobProgress(batch.episodeId, "tts", batch.pieces.length, encoded.durationSeconds);
   log.info(
