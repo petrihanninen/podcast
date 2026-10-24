@@ -35,6 +35,15 @@ env.addFilter("from_json", (value: string) => {
     return [];
   }
 });
+env.addFilter("tojson", (value: unknown) =>
+  new nunjucks.runtime.SafeString(
+    (JSON.stringify(value ?? null) ?? "null")
+      .replace(/</g, "\\u003c")
+      .replace(/>/g, "\\u003e")
+      .replace(/&/g, "\\u0026")
+      .replace(/'/g, "\\u0027")
+  )
+);
 env.addFilter("money", (value: number | null | undefined) => `$${Number(value ?? 0).toFixed(4)}`);
 env.addFilter("fixed", (value: number | null | undefined, digits = 1) =>
   Number(value ?? 0).toFixed(digits)

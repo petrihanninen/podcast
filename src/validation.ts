@@ -1,13 +1,6 @@
 import { z } from "zod";
 
 // ─── Episode ─────────────────────────────────────────────────────────
-export const episodeCreateSchema = z.object({
-  topic: z.string().min(1).max(5000),
-  title: z.string().max(200).nullish(),
-  description: z.string().max(5000).nullish(),
-  target_length_minutes: z.enum(["15", "30", "60", "120"]).transform(Number).default("30"),
-});
-
 export const episodeCreateJsonSchema = z.object({
   topic: z.string().min(1).max(5000),
   title: z.string().max(200).nullish(),
