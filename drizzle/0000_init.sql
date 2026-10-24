@@ -8,11 +8,12 @@ CREATE TABLE "episodes" (
 	"status" varchar(50) DEFAULT 'pending' NOT NULL,
 	"error_message" text,
 	"failed_step" varchar(50),
+	"workflow_run_id" varchar(255),
 	"research_model" varchar(100),
 	"transcript_model" varchar(100),
 	"research_notes" text,
 	"transcript" text,
-	"audio_filename" varchar(255),
+	"audio_url" text,
 	"audio_duration_seconds" integer,
 	"audio_size_bytes" bigint,
 	"episode_number" integer,
@@ -28,20 +29,13 @@ CREATE TABLE "jobs" (
 	"status" varchar(50) DEFAULT 'pending' NOT NULL,
 	"error_message" text,
 	"attempts" integer DEFAULT 0 NOT NULL,
-	"max_attempts" integer DEFAULT 3 NOT NULL,
+	"progress_done" integer DEFAULT 0 NOT NULL,
+	"progress_total" integer DEFAULT 0 NOT NULL,
+	"progress_seconds" real DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"started_at" timestamp with time zone,
 	"completed_at" timestamp with time zone,
 	"metrics_json" text
-);
---> statement-breakpoint
-CREATE TABLE "log_entries" (
-	"id" bigserial PRIMARY KEY NOT NULL,
-	"timestamp" timestamp with time zone DEFAULT now() NOT NULL,
-	"level" varchar(10) NOT NULL,
-	"logger_name" varchar(255) NOT NULL,
-	"message" text NOT NULL,
-	"source" varchar(10) NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "podcast_settings" (
@@ -54,11 +48,19 @@ CREATE TABLE "podcast_settings" (
 	"image_url" varchar(1000),
 	"host_a_name" varchar(100) DEFAULT 'Alex' NOT NULL,
 	"host_b_name" varchar(100) DEFAULT 'Sam' NOT NULL,
-	"voice_ref_a_path" varchar(500),
-	"voice_ref_b_path" varchar(500),
+	"tts_voice_a" varchar(255),
+	"tts_voice_b" varchar(255),
 	"transcript_tone_notes" text,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "podcast_settings_user_id_unique" UNIQUE("user_id")
+);
+--> statement-breakpoint
+CREATE TABLE "tts_voices" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"provider" varchar(50) NOT NULL,
+	"ref_hash" varchar(64) NOT NULL,
+	"voice_id" varchar(255) NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "users" (
@@ -79,8 +81,6 @@ ALTER TABLE "podcast_settings" ADD CONSTRAINT "podcast_settings_user_id_users_id
 CREATE INDEX "idx_episodes_status" ON "episodes" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "idx_episodes_published_at" ON "episodes" USING btree ("published_at");--> statement-breakpoint
 CREATE INDEX "idx_episodes_user_id" ON "episodes" USING btree ("user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "idx_jobs_episode_step" ON "jobs" USING btree ("episode_id","step");--> statement-breakpoint
 CREATE INDEX "idx_jobs_status" ON "jobs" USING btree ("status","created_at");--> statement-breakpoint
-CREATE INDEX "idx_jobs_episode_id" ON "jobs" USING btree ("episode_id");--> statement-breakpoint
-CREATE INDEX "idx_log_entries_timestamp" ON "log_entries" USING btree ("timestamp");--> statement-breakpoint
-CREATE INDEX "idx_log_entries_level" ON "log_entries" USING btree ("level");--> statement-breakpoint
-CREATE INDEX "idx_log_entries_source" ON "log_entries" USING btree ("source");
+CREATE UNIQUE INDEX "idx_tts_voices_provider_ref" ON "tts_voices" USING btree ("provider","ref_hash");

@@ -7,9 +7,9 @@ import {
   timestamp,
   integer,
   bigint,
+  real,
   index,
   uniqueIndex,
-  bigserial,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
@@ -48,6 +48,7 @@ export const episodes = pgTable(
     status: varchar("status", { length: 50 }).notNull().default("pending"),
     errorMessage: text("error_message"),
     failedStep: varchar("failed_step", { length: 50 }),
+    workflowRunId: varchar("workflow_run_id", { length: 255 }),
 
     researchModel: varchar("research_model", { length: 100 }),
     transcriptModel: varchar("transcript_model", { length: 100 }),
@@ -55,7 +56,7 @@ export const episodes = pgTable(
     researchNotes: text("research_notes"),
     transcript: text("transcript"),
 
-    audioFilename: varchar("audio_filename", { length: 255 }),
+    audioUrl: text("audio_url"),
     audioDurationSeconds: integer("audio_duration_seconds"),
     audioSizeBytes: bigint("audio_size_bytes", { mode: "number" }),
 
@@ -81,7 +82,7 @@ export const episodesRelations = relations(episodes, ({ one, many }) => ({
   jobs: many(jobs),
 }));
 
-// ─── Jobs ────────────────────────────────────────────────────────────
+// ─── Jobs (one row per pipeline step per episode) ────────────────────
 export const jobs = pgTable(
   "jobs",
   {
@@ -93,7 +94,10 @@ export const jobs = pgTable(
     status: varchar("status", { length: 50 }).notNull().default("pending"),
     errorMessage: text("error_message"),
     attempts: integer("attempts").notNull().default(0),
-    maxAttempts: integer("max_attempts").notNull().default(3),
+
+    progressDone: integer("progress_done").notNull().default(0),
+    progressTotal: integer("progress_total").notNull().default(0),
+    progressSeconds: real("progress_seconds").notNull().default(0),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -103,8 +107,8 @@ export const jobs = pgTable(
     metricsJson: text("metrics_json"),
   },
   (table) => [
+    uniqueIndex("idx_jobs_episode_step").on(table.episodeId, table.step),
     index("idx_jobs_status").on(table.status, table.createdAt),
-    index("idx_jobs_episode_id").on(table.episodeId),
   ]
 );
 
@@ -132,8 +136,8 @@ export const podcastSettings = pgTable("podcast_settings", {
 
   hostAName: varchar("host_a_name", { length: 100 }).notNull().default("Alex"),
   hostBName: varchar("host_b_name", { length: 100 }).notNull().default("Sam"),
-  voiceRefAPath: varchar("voice_ref_a_path", { length: 500 }),
-  voiceRefBPath: varchar("voice_ref_b_path", { length: 500 }),
+  ttsVoiceA: varchar("tts_voice_a", { length: 255 }),
+  ttsVoiceB: varchar("tts_voice_b", { length: 255 }),
   transcriptToneNotes: text("transcript_tone_notes"),
 
   updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -152,7 +156,7 @@ export const podcastSettingsRelations = relations(
   })
 );
 
-// ─── TTS Voices ──────────────────────────────────────────────────────
+// ─── TTS voices (cloned voice ids cached per reference audio) ────────
 export const ttsVoices = pgTable(
   "tts_voices",
   {
@@ -169,30 +173,9 @@ export const ttsVoices = pgTable(
   ]
 );
 
-// ─── Log Entries ─────────────────────────────────────────────────────
-export const logEntries = pgTable(
-  "log_entries",
-  {
-    id: bigserial("id", { mode: "number" }).primaryKey(),
-    timestamp: timestamp("timestamp", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    level: varchar("level", { length: 10 }).notNull(),
-    loggerName: varchar("logger_name", { length: 255 }).notNull(),
-    message: text("message").notNull(),
-    source: varchar("source", { length: 10 }).notNull(),
-  },
-  (table) => [
-    index("idx_log_entries_timestamp").on(table.timestamp),
-    index("idx_log_entries_level").on(table.level),
-    index("idx_log_entries_source").on(table.source),
-  ]
-);
-
 // ─── Type exports ────────────────────────────────────────────────────
 export type User = typeof users.$inferSelect;
 export type Episode = typeof episodes.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type PodcastSettings = typeof podcastSettings.$inferSelect;
-export type LogEntry = typeof logEntries.$inferSelect;
 export type TtsVoice = typeof ttsVoices.$inferSelect;

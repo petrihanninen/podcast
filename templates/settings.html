@@ -74,6 +74,20 @@
       </div>
     </div>
 
+    <div class="grid grid--2">
+      <div class="form-group">
+        <label for="tts_voice_a">Host A Voice ID</label>
+        <input type="text" id="tts_voice_a" name="tts_voice_a" class="input" value="{{ settings.ttsVoiceA or '' }}" placeholder="bundled host_a.wav">
+      </div>
+      <div class="form-group">
+        <label for="tts_voice_b">Host B Voice ID</label>
+        <input type="text" id="tts_voice_b" name="tts_voice_b" class="input" value="{{ settings.ttsVoiceB or '' }}" placeholder="bundled host_b.wav">
+      </div>
+    </div>
+    <p style="font-size: var(--text-overline); color: var(--color-text-muted); margin-block-start: calc(-1 * var(--space-2));">
+      Optional DeepInfra voice IDs (create a cloned voice in the DeepInfra console). Leave empty to use the bundled LibriVox voices.
+    </p>
+
     {% if password_required %}
     <div class="form-group">
       <label for="password">Password</label>

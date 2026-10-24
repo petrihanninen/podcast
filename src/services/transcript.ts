@@ -1,24 +1,49 @@
 import { eq } from "drizzle-orm";
 import { db } from "../database.js";
 import { episodes, podcastSettings } from "../schema.js";
-import { complete, getTranscriptModel } from "./llm-providers.js";
-import { createLogger } from "../log-handler.js";
+import { complete, getTranscriptModel, type LLMResponse } from "./llm-providers.js";
+import { completeJob, startJob } from "./jobs.js";
+import { createLogger } from "../log.js";
 
 const log = createLogger("transcript");
 
+export interface Segment {
+  speaker: string;
+  text: string;
+}
+
+export interface TranscriptPlan {
+  parts: number;
+  wordsPerPart: number;
+  totalWords: number;
+  duration: string;
+  notesTruncation: number;
+  maxTokensPerPart: number;
+  hostA: string;
+  hostB: string;
+  toneNotes: string[];
+  topic: string;
+}
+
+export interface Outline {
+  sections: Array<{ title: string; points: string[] }>;
+}
+
+export interface LlmUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  calls: number;
+}
+
 const TRANSCRIPT_LENGTH_CONFIG: Record<
   number,
-  {
-    wordTarget: number;
-    duration: string;
-    notesTruncation: number;
-    maxTokens: number;
-  }
+  { parts: number; wordsPerPart: number; duration: string; notesTruncation: number }
 > = {
-  15: { wordTarget: 2000, duration: "12-15", notesTruncation: 40000, maxTokens: 12000 },
-  30: { wordTarget: 4000, duration: "25-30", notesTruncation: 60000, maxTokens: 20000 },
-  60: { wordTarget: 8000, duration: "55-60", notesTruncation: 100000, maxTokens: 36000 },
-  120: { wordTarget: 16000, duration: "110-120", notesTruncation: 160000, maxTokens: 64000 },
+  15: { parts: 1, wordsPerPart: 2000, duration: "12-15", notesTruncation: 40000 },
+  30: { parts: 1, wordsPerPart: 4000, duration: "25-30", notesTruncation: 60000 },
+  60: { parts: 2, wordsPerPart: 4000, duration: "55-60", notesTruncation: 100000 },
+  120: { parts: 4, wordsPerPart: 4000, duration: "110-120", notesTruncation: 160000 },
 };
 
 export const DEFAULT_TONE_NOTES: string[] = [
@@ -30,7 +55,7 @@ export const DEFAULT_TONE_NOTES: string[] = [
   "Make sure the listener learns something genuinely interesting and useful",
 ];
 
-const TRANSCRIPT_SYSTEM_PROMPT = `You are a podcast script writer. You write engaging, natural-sounding \
+const SYSTEM_PROMPT = `You are a podcast script writer. You write engaging, natural-sounding \
 conversational transcripts between two podcast hosts.
 
 Your output MUST be a JSON array of dialogue segments. Each segment is an object with:
@@ -41,28 +66,16 @@ Guidelines for the conversation:
 - {{host_a}} tends to introduce topics and provide structure
 - {{host_b}} asks great questions, plays devil's advocate, and adds surprising perspectives
 {tone_notes}\
-- Target {{word_target}} words total (roughly {{duration}} minutes at speaking pace)
 - Don't use stage directions or descriptions — only spoken dialogue
 - Write for text-to-speech: spell out numbers and abbreviations the way a person would say them, and avoid URLs, markdown and special symbols
 
 Output ONLY the JSON array, no other text.`;
 
-function buildSystemPrompt(
-  hostA: string,
-  hostB: string,
-  wordTarget: number,
-  duration: string,
-  toneNotes?: string[] | null
-): string {
-  const notes = toneNotes ?? DEFAULT_TONE_NOTES;
-  const toneLines = notes.map((n) => `- ${n}\n`).join("");
-  let template = TRANSCRIPT_SYSTEM_PROMPT.replace("{tone_notes}", toneLines);
-  template = template
-    .replace(/\{\{host_a\}\}/g, hostA)
-    .replace(/\{\{host_b\}\}/g, hostB)
-    .replace(/\{\{word_target\}\}/g, String(wordTarget))
-    .replace(/\{\{duration\}\}/g, duration);
-  return template;
+function buildSystemPrompt(plan: TranscriptPlan): string {
+  const toneLines = plan.toneNotes.map((n) => `- ${n}\n`).join("");
+  return SYSTEM_PROMPT.replace("{tone_notes}", toneLines)
+    .replace(/\{\{host_a\}\}/g, plan.hostA)
+    .replace(/\{\{host_b\}\}/g, plan.hostB);
 }
 
 function repairJson(text: string): string {
@@ -75,7 +88,7 @@ function repairJson(text: string): string {
   return text;
 }
 
-export function parseSegments(raw: string): Array<{ speaker: string; text: string }> {
+function stripFences(raw: string): string {
   let text = raw.trim();
   if (text.startsWith("```")) {
     text = text
@@ -83,7 +96,11 @@ export function parseSegments(raw: string): Array<{ speaker: string; text: strin
       .filter((l) => !l.trim().startsWith("```"))
       .join("\n");
   }
+  return text;
+}
 
+export function parseSegments(raw: string): Segment[] {
+  const text = stripFences(raw);
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -112,10 +129,197 @@ export function parseSegments(raw: string): Array<{ speaker: string; text: strin
   });
 }
 
-export async function generateTitle(
-  topic: string,
-  transcriptExcerpt?: string
-): Promise<string | null> {
+function parseOutline(raw: string, parts: number): Outline {
+  const text = stripFences(raw);
+  let parsed: any;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    parsed = JSON.parse(text.slice(start, end + 1));
+  }
+  const sections = Array.isArray(parsed?.sections) ? parsed.sections : Array.isArray(parsed) ? parsed : null;
+  if (!sections || sections.length === 0) throw new Error("Outline did not contain sections");
+  const cleaned = sections.map((s: any, i: number) => ({
+    title: typeof s?.title === "string" ? s.title : `Part ${i + 1}`,
+    points: Array.isArray(s?.points) ? s.points.map(String) : [],
+  }));
+  while (cleaned.length < parts) cleaned.push({ title: `Part ${cleaned.length + 1}`, points: [] });
+  return { sections: cleaned.slice(0, parts) };
+}
+
+function usageOf(response: LLMResponse): LlmUsage {
+  return {
+    input_tokens: response.inputTokens,
+    output_tokens: response.outputTokens,
+    cost_usd: response.costUsd,
+    calls: 1,
+  };
+}
+
+export function addUsage(a: LlmUsage, b: LlmUsage): LlmUsage {
+  return {
+    input_tokens: a.input_tokens + b.input_tokens,
+    output_tokens: a.output_tokens + b.output_tokens,
+    cost_usd: a.cost_usd + b.cost_usd,
+    calls: a.calls + b.calls,
+  };
+}
+
+export const EMPTY_USAGE: LlmUsage = { input_tokens: 0, output_tokens: 0, cost_usd: 0, calls: 0 };
+
+async function loadEpisode(episodeId: string) {
+  const [episode] = await db.select().from(episodes).where(eq(episodes.id, episodeId)).limit(1);
+  if (!episode) throw new Error(`Episode ${episodeId} not found`);
+  return episode;
+}
+
+async function researchNotesFor(episodeId: string, truncation: number): Promise<string> {
+  const episode = await loadEpisode(episodeId);
+  let notes = episode.researchNotes || "No research notes available.";
+  if (notes.length > truncation) notes = notes.slice(0, truncation) + "\n\n[...truncated]";
+  return notes;
+}
+
+export async function planTranscript(episodeId: string): Promise<TranscriptPlan> {
+  const episode = await loadEpisode(episodeId);
+  const [settings] = await db
+    .select()
+    .from(podcastSettings)
+    .where(eq(podcastSettings.userId, episode.userId))
+    .limit(1);
+
+  let toneNotes: string[] = DEFAULT_TONE_NOTES;
+  if (settings?.transcriptToneNotes) {
+    try {
+      const parsed = JSON.parse(settings.transcriptToneNotes);
+      if (Array.isArray(parsed)) toneNotes = parsed.map(String);
+    } catch {}
+  }
+
+  const config = TRANSCRIPT_LENGTH_CONFIG[episode.targetLengthMinutes] ?? TRANSCRIPT_LENGTH_CONFIG[30];
+  await startJob(episodeId, "transcript");
+
+  return {
+    parts: config.parts,
+    wordsPerPart: config.wordsPerPart,
+    totalWords: config.parts * config.wordsPerPart,
+    duration: config.duration,
+    notesTruncation: config.notesTruncation,
+    maxTokensPerPart: Math.round(config.wordsPerPart * 3),
+    hostA: settings?.hostAName ?? "Alex",
+    hostB: settings?.hostBName ?? "Sam",
+    toneNotes,
+    topic: episode.topic,
+  };
+}
+
+export async function outlineTranscript(
+  episodeId: string,
+  plan: TranscriptPlan
+): Promise<{ outline: Outline; usage: LlmUsage }> {
+  const modelInfo = getTranscriptModel();
+  const notes = await researchNotesFor(episodeId, plan.notesTruncation);
+  const response = await complete(modelInfo, {
+    system:
+      "You plan long-form podcast episodes. Output ONLY a JSON object of the form " +
+      '{"sections":[{"title":"...","points":["...","..."]}]} with no other text.',
+    user: `Plan a ${plan.duration} minute two-host podcast episode as exactly ${plan.parts} consecutive \
+sections of roughly equal length, in narrative order (hook and context first, implications and \
+takeaways last). Each section needs a title and 4-8 bullet points of concrete material from the \
+research notes to cover, without repeating material between sections.
+
+Topic: ${plan.topic}
+
+Research notes:
+${notes}`,
+    maxTokens: 4000,
+    effort: "low",
+  });
+  log.info("Outline for episode %s: %d sections", episodeId, plan.parts);
+  return { outline: parseOutline(response.text, plan.parts), usage: usageOf(response) };
+}
+
+export async function writeTranscriptPart(
+  episodeId: string,
+  plan: TranscriptPlan,
+  partIndex: number,
+  outline: Outline | null,
+  previousTail: Segment[]
+): Promise<{ segments: Segment[]; usage: LlmUsage; model: string }> {
+  const modelInfo = getTranscriptModel();
+  const notes = await researchNotesFor(episodeId, plan.notesTruncation);
+  const isFirst = partIndex === 0;
+  const isLast = partIndex === plan.parts - 1;
+
+  let partInstructions = "";
+  if (plan.parts > 1) {
+    const section = outline?.sections[partIndex];
+    const sectionText = section
+      ? `${section.title}\n${section.points.map((p) => `- ${p}`).join("\n")}`
+      : "(no outline available)";
+    const others = outline
+      ? outline.sections
+          .map((s, i) => `${i + 1}. ${s.title}${i === partIndex ? " (THIS PART)" : ""}`)
+          .join("\n")
+      : "";
+    partInstructions = `
+This episode is written in ${plan.parts} parts; you are writing PART ${partIndex + 1} of ${plan.parts}. \
+Target about ${plan.wordsPerPart} words for this part.
+Full episode outline:
+${others}
+
+Cover ONLY this part's section:
+${sectionText}
+
+${isFirst ? "Open the episode with a hook and introductions." : "Do NOT re-introduce the show or the hosts; continue the conversation seamlessly from where it left off."}
+${isLast ? "Close the episode with takeaways and a sign-off." : "Do NOT wrap up or sign off; end at a natural transition into the next section."}
+${previousTail.length > 0 ? `The conversation so far ended with:\n${previousTail.map((s) => `${s.speaker}: ${s.text}`).join("\n")}` : ""}`;
+  } else {
+    partInstructions = `Target ${plan.totalWords} words total (roughly ${plan.duration} minutes at speaking pace).`;
+  }
+
+  const response = await complete(modelInfo, {
+    system: buildSystemPrompt(plan),
+    user: `Write a podcast episode transcript about the following topic.
+
+Topic: ${plan.topic}
+
+Research notes:
+${notes}
+
+${partInstructions}
+
+The two hosts are ${plan.hostA} and ${plan.hostB}. Remember to output ONLY the JSON array.`,
+    maxTokens: plan.maxTokensPerPart,
+  });
+
+  const segments = parseSegments(response.text);
+  const known = new Set([plan.hostA, plan.hostB]);
+  const unknown = segments.filter((s) => !known.has(s.speaker));
+  if (unknown.length > 0) {
+    log.warn(
+      "Episode %s part %d: %d segment(s) with unknown speaker (e.g. %s) will use host B's voice",
+      episodeId,
+      partIndex + 1,
+      unknown.length,
+      unknown[0].speaker
+    );
+  }
+  log.info(
+    "Episode %s part %d/%d: %d segments, %d in/%d out tokens",
+    episodeId,
+    partIndex + 1,
+    plan.parts,
+    segments.length,
+    response.inputTokens,
+    response.outputTokens
+  );
+  return { segments, usage: usageOf(response), model: response.model };
+}
+
+export async function generateTitle(topic: string, transcriptExcerpt?: string): Promise<string | null> {
   const modelInfo = getTranscriptModel();
   const context = transcriptExcerpt
     ? `Topic: ${topic}\n\nTranscript excerpt:\n${transcriptExcerpt}`
@@ -141,86 +345,14 @@ export async function generateTitle(
   }
 }
 
-export async function generateTranscript(
-  episodeId: string
+export async function saveTranscript(
+  episodeId: string,
+  segments: Segment[],
+  usage: LlmUsage,
+  model: string,
+  durationSeconds: number
 ): Promise<Record<string, unknown>> {
-  const [episode] = await db
-    .select()
-    .from(episodes)
-    .where(eq(episodes.id, episodeId))
-    .limit(1);
-  if (!episode) throw new Error(`Episode ${episodeId} not found`);
-
-  const [settings] = await db
-    .select()
-    .from(podcastSettings)
-    .where(eq(podcastSettings.userId, episode.userId))
-    .limit(1);
-
-  const hostA = settings?.hostAName ?? "Alex";
-  const hostB = settings?.hostBName ?? "Sam";
-
-  let toneNotes: string[] | null = null;
-  if (settings?.transcriptToneNotes) {
-    try {
-      const parsed = JSON.parse(settings.transcriptToneNotes);
-      if (Array.isArray(parsed)) toneNotes = parsed;
-    } catch {}
-  }
-
-  const modelInfo = getTranscriptModel(episode.transcriptModel);
-  log.info(
-    "Generating transcript for episode %s via %s (%s)",
-    episodeId,
-    modelInfo.displayName,
-    modelInfo.modelId
-  );
-
-  const config = TRANSCRIPT_LENGTH_CONFIG[episode.targetLengthMinutes] ??
-    TRANSCRIPT_LENGTH_CONFIG[30];
-
-  const system = buildSystemPrompt(
-    hostA,
-    hostB,
-    config.wordTarget,
-    config.duration,
-    toneNotes
-  );
-
-  let notes = episode.researchNotes || "No research notes available.";
-  if (notes.length > config.notesTruncation) {
-    notes = notes.slice(0, config.notesTruncation) + "\n\n[...truncated]";
-  }
-
-  const userMessage = `Write a podcast episode transcript about the following topic.
-
-Topic: ${episode.topic}
-
-Research notes:
-${notes}
-
-The two hosts are ${hostA} and ${hostB}. Remember to output ONLY the JSON array.`;
-
-  const t0 = performance.now();
-  const response = await complete(modelInfo, {
-    system,
-    user: userMessage,
-    maxTokens: config.maxTokens,
-  });
-  const apiDuration = (performance.now() - t0) / 1000;
-
-  const segments = parseSegments(response.text);
-  const knownSpeakers = new Set([hostA, hostB]);
-  const unknown = segments.filter((s) => !knownSpeakers.has(s.speaker));
-  if (unknown.length > 0) {
-    log.warn(
-      "Transcript for episode %s has %d segment(s) with unknown speakers (e.g. %s); they will use host B's voice",
-      episodeId,
-      unknown.length,
-      unknown[0].speaker
-    );
-  }
-
+  const episode = await loadEpisode(episodeId);
   await db
     .update(episodes)
     .set({ transcript: JSON.stringify(segments) })
@@ -233,38 +365,29 @@ The two hosts are ${hostA} and ${hostB}. Remember to output ONLY the JSON array.
     .slice(0, 3000);
   const newTitle = await generateTitle(episode.topic, excerpt);
   if (newTitle) {
-    await db
-      .update(episodes)
-      .set({ title: newTitle })
-      .where(eq(episodes.id, episodeId));
+    await db.update(episodes).set({ title: newTitle }).where(eq(episodes.id, episodeId));
     log.info("Refined title for episode %s: %s", episodeId, newTitle);
   }
 
-  const wordCount = segments.reduce(
-    (sum, seg) => sum + seg.text.split(/\s+/).length,
-    0
-  );
+  const wordCount = segments.reduce((sum, seg) => sum + seg.text.split(/\s+/).length, 0);
   const metrics = {
-    model: response.model,
-    provider: modelInfo.provider,
-    input_tokens: response.inputTokens,
-    output_tokens: response.outputTokens,
-    cost_usd: response.costUsd,
-    duration_seconds: Math.round(apiDuration * 100) / 100,
+    model,
+    provider: getTranscriptModel().provider,
+    input_tokens: usage.input_tokens,
+    output_tokens: usage.output_tokens,
+    cost_usd: usage.cost_usd,
+    llm_calls: usage.calls,
+    duration_seconds: Math.round(durationSeconds * 100) / 100,
     segment_count: segments.length,
     word_count: wordCount,
   };
-
+  await completeJob(episodeId, "transcript", metrics);
   log.info(
-    "Transcript generated for episode %s: %d segments, %d words, %d in/%d out tokens, $%s, %.1fs",
+    "Transcript saved for episode %s: %d segments, %d words, $%s",
     episodeId,
     segments.length,
     wordCount,
-    metrics.input_tokens,
-    metrics.output_tokens,
-    metrics.cost_usd.toFixed(4),
-    apiDuration
+    usage.cost_usd.toFixed(4)
   );
-
   return metrics;
 }

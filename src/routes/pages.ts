@@ -1,120 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../database.js";
-import { episodes, podcastSettings, type User } from "../schema.js";
+import { episodes, podcastSettings } from "../schema.js";
 import { requireAuthPage, requireAdminPage } from "../auth.js";
-import {
-  createEpisode,
-  getEpisode,
-  listEpisodes,
-} from "../services/episode.js";
-import { getTtsProgress as readTtsProgress, type TtsProgress } from "../services/tts.js";
+import { createEpisode, getEpisode, listEpisodes } from "../services/episode.js";
 import { parseMetrics, stepCost } from "../services/cost.js";
 import { DEFAULT_TONE_NOTES } from "../services/transcript.js";
-import { renderTemplate } from "../server.js";
-
-// ─── Template helpers ────────────────────────────────────────────────
-export function statusBadge(status: string): string {
-  const mapping: Record<string, string> = {
-    ready: "badge--success",
-    failed: "badge--error",
-    pending: "badge--info",
-  };
-  return mapping[status] ?? "badge--warning";
-}
-
-export function statusLabel(status: string): string {
-  const mapping: Record<string, string> = {
-    pending: "Pending",
-    researching: "Researching",
-    writing_transcript: "Writing transcript",
-    generating_audio: "Generating audio",
-    encoding: "Encoding",
-    ready: "Ready",
-    failed: "Failed",
-  };
-  return mapping[status] ?? status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-export function formatDuration(seconds: number | null): string {
-  if (seconds == null) return "";
-  const minutes = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${minutes}:${String(secs).padStart(2, "0")}`;
-}
-
-export function formatFileSize(sizeBytes: number | null): string {
-  if (sizeBytes == null) return "";
-  if (sizeBytes < 1024) return `${sizeBytes} B`;
-  if (sizeBytes < 1024 * 1024)
-    return `${(sizeBytes / 1024).toFixed(1)} KB`;
-  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-const PIPELINE_STEPS = ["research", "transcript", "tts", "encode"];
-const STEP_LABELS: Record<string, string> = {
-  research: "Research",
-  transcript: "Transcript",
-  tts: "Audio",
-  encode: "Encode",
-};
-
-export function buildPipelineInfo(episode: any): Array<Record<string, unknown>> {
-  const jobsByStep: Record<string, any> = {};
-  for (const job of episode.jobs ?? []) {
-    jobsByStep[job.step] = job;
-  }
-
-  return PIPELINE_STEPS.map((stepName) => {
-    const job = jobsByStep[stepName];
-    if (job) {
-      let duration = null;
-      if (job.startedAt && job.completedAt) {
-        const totalSecs = Math.round(
-          (new Date(job.completedAt).getTime() -
-            new Date(job.startedAt).getTime()) /
-            1000
-        );
-        duration =
-          totalSecs >= 60
-            ? `${Math.floor(totalSecs / 60)}m ${totalSecs % 60}s`
-            : `${totalSecs}s`;
-      }
-      return {
-        name: stepName,
-        label: STEP_LABELS[stepName],
-        status: job.status,
-        attempts: job.attempts,
-        duration,
-      };
-    }
-    return {
-      name: stepName,
-      label: STEP_LABELS[stepName],
-      status: "waiting",
-      attempts: 0,
-      duration: null,
-    };
-  });
-}
-
-export function getCurrentStepIndex(episode: any): number {
-  if (episode.status === "ready") return PIPELINE_STEPS.length;
-  const jobsByStep: Record<string, any> = {};
-  for (const job of episode.jobs ?? []) {
-    jobsByStep[job.step] = job;
-  }
-  for (let i = 0; i < PIPELINE_STEPS.length; i++) {
-    const job = jobsByStep[PIPELINE_STEPS[i]];
-    if (!job || job.status === "pending" || job.status === "running") return i;
-  }
-  return PIPELINE_STEPS.length;
-}
-
-export function getTtsProgress(episode: any): TtsProgress | null {
-  if (episode.status !== "generating_audio") return null;
-  return readTtsProgress(episode.id);
-}
+import { renderTemplate } from "../templates.js";
 
 function html(reply: any, content: string) {
   return reply.header("Content-Type", "text/html").send(content);
@@ -221,12 +113,6 @@ export async function pageRoutes(app: FastifyInstance) {
     }
   );
 
-  // Logs page (admin)
-  app.get("/logs", async (request, reply) => {
-    const user = await requireAdminPage(request, reply);
-    return html(reply, renderTemplate("logs.html", { user }));
-  });
-
   // Settings page
   app.get("/settings", async (request, reply) => {
     const user = await requireAuthPage(request, reply);
@@ -281,6 +167,8 @@ export async function pageRoutes(app: FastifyInstance) {
       language: "language",
       host_a_name: "hostAName",
       host_b_name: "hostBName",
+      tts_voice_a: "ttsVoiceA",
+      tts_voice_b: "ttsVoiceB",
     };
 
     for (const [formField, dbField] of Object.entries(fieldMap)) {

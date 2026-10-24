@@ -1,13 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { eq, sql, desc, and, ilike } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db } from "../database.js";
-import {
-  episodes,
-  jobs,
-  logEntries,
-  podcastSettings,
-  type User,
-} from "../schema.js";
+import { episodes, podcastSettings, type User } from "../schema.js";
 import { requireAuth, requireAdmin } from "../auth.js";
 import { episodeCreateJsonSchema, settingsUpdateSchema } from "../validation.js";
 import {
@@ -17,12 +11,8 @@ import {
   listEpisodes,
   retryEpisode,
 } from "../services/episode.js";
-import { getTtsProgress } from "../services/tts.js";
+import { getTtsProgress } from "../view-helpers.js";
 import { parseMetrics, stepCost } from "../services/cost.js";
-
-function escapeLike(s: string): string {
-  return s.replace(/[%_\\]/g, "\\$&");
-}
 
 export async function apiRoutes(app: FastifyInstance) {
   // Health check
@@ -48,9 +38,7 @@ export async function apiRoutes(app: FastifyInstance) {
     const user: User = await requireAuth(request, reply);
     const eps = await listEpisodes(user.id);
     return eps.map((ep) => {
-      const ttsProgress =
-        ep.status === "generating_audio" ? getTtsProgress(ep.id) : null;
-      return { ...ep, ttsProgress };
+      return { ...ep, ttsProgress: getTtsProgress(ep) };
     });
   });
 
@@ -62,11 +50,7 @@ export async function apiRoutes(app: FastifyInstance) {
       if (!episode) {
         return reply.code(404).send({ error: "Episode not found" });
       }
-      const ttsProgress =
-        episode.status === "generating_audio"
-          ? getTtsProgress(episode.id)
-          : null;
-      return { ...episode, ttsProgress };
+      return { ...episode, ttsProgress: getTtsProgress(episode) };
     }
   );
 
@@ -95,56 +79,6 @@ export async function apiRoutes(app: FastifyInstance) {
       return episode;
     }
   );
-
-  // ─── Logs ────────────────────────────────────────────────────
-  app.get<{
-    Querystring: {
-      page?: string;
-      page_size?: string;
-      level?: string;
-      source?: string;
-      search?: string;
-    };
-  }>("/api/logs", async (request, reply) => {
-    await requireAdmin(request, reply);
-    const page = Math.max(1, parseInt(request.query.page || "1", 10));
-    const pageSize = Math.min(
-      500,
-      Math.max(1, parseInt(request.query.page_size || "100", 10))
-    );
-    const { level, source, search } = request.query;
-
-    const conditions = [];
-    if (level) conditions.push(eq(logEntries.level, level.toUpperCase()));
-    if (source) conditions.push(eq(logEntries.source, source.toLowerCase()));
-    if (search) conditions.push(ilike(logEntries.message, `%${escapeLike(search)}%`));
-
-    const where =
-      conditions.length > 0 ? and(...conditions) : undefined;
-    const offset = (page - 1) * pageSize;
-
-    const [logsResult, [{ total }]] = await Promise.all([
-      db
-        .select()
-        .from(logEntries)
-        .where(where)
-        .orderBy(desc(logEntries.timestamp))
-        .offset(offset)
-        .limit(pageSize),
-      db
-        .select({ total: sql<number>`count(*)` })
-        .from(logEntries)
-        .where(where),
-    ]);
-
-    return {
-      logs: logsResult,
-      total,
-      page,
-      page_size: pageSize,
-      has_more: offset + pageSize < total,
-    };
-  });
 
   // ─── Settings ────────────────────────────────────────────────
   app.get("/api/settings", async (request, reply) => {
