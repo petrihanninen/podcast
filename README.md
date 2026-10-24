@@ -24,7 +24,7 @@ Alternatives: `RESEARCH_MODEL` accepts `gemini-flash-lite`, `gpt-luna`, `gpt-6-l
 ## Deploying to Vercel
 
 1. **Database**: add Neon from the Vercel Marketplace (free plan) or create a Neon project yourself; use the pooled connection string as `DATABASE_URL`.
-2. **Audio storage**: create an S3-compatible bucket with public reads and set `STORAGE_ENDPOINT`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY` and `STORAGE_PUBLIC_URL` (the public base URL of the bucket). Cloudflare R2 (10 GB and all egress free, needs a custom domain on a Cloudflare zone for production URLs), Backblaze B2 (10 GB free, public "friendly" URLs without DNS) and Neon Object Storage (5 GB free per project) all work.
+2. **Audio storage**: create an S3-compatible bucket with public reads and set `STORAGE_ENDPOINT`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY` and `STORAGE_PUBLIC_URL` (the public base URL of the bucket). Cloudflare R2 (10 GB and all egress free; `STORAGE_REGION=auto`, public URL from the bucket's r2.dev development URL or a custom domain on a Cloudflare zone), Backblaze B2 (10 GB free, public "friendly" URLs without DNS) and Neon Object Storage (5 GB free per project) all work.
 3. **Keys**: `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `DEEPINFRA_API_KEY`, plus `SESSION_SECRET` (`openssl rand -hex 32`) and `REGISTER_TOKEN`.
 4. Import the repository in Vercel. Nitro is detected automatically (`npm run build`). In the project settings enable **Environment Variables → Enable access to System Environment Variables**; Workflow needs `VERCEL_DEPLOYMENT_ID` to pick the Vercel backend, otherwise every run fails on the read-only filesystem.
 5. Apply the schema once against production: `DATABASE_URL=... npm run db:migrate`.

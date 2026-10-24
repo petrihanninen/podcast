@@ -1,5 +1,5 @@
 import {
-  DeleteObjectsCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -22,6 +22,8 @@ function getClient(): S3Client {
     region: s.region,
     forcePathStyle: s.forcePathStyle,
     credentials: { accessKeyId: s.accessKeyId, secretAccessKey: s.secretAccessKey },
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
   return client;
 }
@@ -58,13 +60,11 @@ export async function getObject(key: string): Promise<Buffer> {
 }
 
 export async function deleteObjects(keys: string[]): Promise<void> {
-  for (let i = 0; i < keys.length; i += 1000) {
-    const chunk = keys.slice(i, i + 1000);
-    await getClient().send(
-      new DeleteObjectsCommand({
-        Bucket: settings.storage.bucket,
-        Delete: { Objects: chunk.map((Key) => ({ Key })), Quiet: true },
-      })
+  for (let i = 0; i < keys.length; i += 8) {
+    await Promise.all(
+      keys.slice(i, i + 8).map((Key) =>
+        getClient().send(new DeleteObjectCommand({ Bucket: settings.storage.bucket, Key }))
+      )
     );
   }
 }
