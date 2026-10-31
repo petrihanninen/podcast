@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../database.js";
-import { episodes, podcastSettings } from "../schema.js";
-import { requireAuthPage, requireAdminPage } from "../auth.js";
-import { createEpisode, getEpisode, listEpisodes } from "../services/episode.js";
+import { episodes, podcastSettings, users } from "../schema.js";
+import { generateApiToken, requireAuthPage, requireAdminPage } from "../auth.js";
+import { createEpisode, getEpisode, listEpisodes, listEpisodeSources } from "../services/episode.js";
 import { parseMetrics, stepCost } from "../services/cost.js";
 import { DEFAULT_TONE_NOTES } from "../services/transcript.js";
 import { renderTemplate } from "../templates.js";
@@ -44,13 +44,10 @@ export async function pageRoutes(app: FastifyInstance) {
     }
 
     const episode = await createEpisode(
-      topic,
-      title,
-      null,
-      targetLength,
+      { topic, title, targetLengthMinutes: targetLength },
       user.id
     );
-    return reply.code(303).redirect( `/episodes/${episode.id}`);
+    return reply.code(303).redirect(`/episodes/${episode.id}`);
   });
 
   // Also handle POST /episodes/new for the form
@@ -73,13 +70,10 @@ export async function pageRoutes(app: FastifyInstance) {
     }
 
     const episode = await createEpisode(
-      topic,
-      title,
-      null,
-      targetLength,
+      { topic, title, targetLengthMinutes: targetLength },
       user.id
     );
-    return reply.code(303).redirect( `/episodes/${episode.id}`);
+    return reply.code(303).redirect(`/episodes/${episode.id}`);
   });
 
   // Episode list
@@ -106,9 +100,10 @@ export async function pageRoutes(app: FastifyInstance) {
       if (!episode) {
         return reply.code(404).header("Content-Type", "text/html").send("Not found");
       }
+      const sources = await listEpisodeSources(episode.id);
       return html(
         reply,
-        renderTemplate("episode_detail.html", { episode, user })
+        renderTemplate("episode_detail.html", { episode, sources, user })
       );
     }
   );
@@ -183,7 +178,16 @@ export async function pageRoutes(app: FastifyInstance) {
         .where(eq(podcastSettings.userId, user.id));
     }
 
-    return reply.code(303).redirect( "/settings");
+    return reply.code(303).redirect("/settings");
+  });
+
+  app.post("/settings/api-token", async (request, reply) => {
+    const user = await requireAuthPage(request, reply);
+    await db
+      .update(users)
+      .set({ apiToken: generateApiToken() })
+      .where(eq(users.id, user.id));
+    return reply.code(303).redirect("/settings#api");
   });
 
   // Metrics page (admin)

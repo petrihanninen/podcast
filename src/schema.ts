@@ -22,6 +22,7 @@ export const users = pgTable("users", {
   enabled: boolean("enabled").notNull().default(true),
   isAdmin: boolean("is_admin").notNull().default(false),
   feedToken: varchar("feed_token", { length: 64 }).notNull().unique(),
+  apiToken: varchar("api_token", { length: 64 }).unique(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -44,6 +45,7 @@ export const episodes = pgTable(
     description: text("description"),
     topic: text("topic").notNull(),
     targetLengthMinutes: integer("target_length_minutes").notNull().default(30),
+    webSearch: boolean("web_search").notNull().default(true),
 
     status: varchar("status", { length: 50 }).notNull().default("pending"),
     errorMessage: text("error_message"),
@@ -80,6 +82,32 @@ export const episodes = pgTable(
 export const episodesRelations = relations(episodes, ({ one, many }) => ({
   user: one(users, { fields: [episodes.userId], references: [users.id] }),
   jobs: many(jobs),
+  sources: many(episodeSources),
+}));
+
+// ─── Episode sources (material supplied with the brief) ──────────────
+export const episodeSources = pgTable(
+  "episode_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom().$defaultFn(() => randomUUID()),
+    episodeId: uuid("episode_id")
+      .notNull()
+      .references(() => episodes.id, { onDelete: "cascade" }),
+    position: integer("position").notNull().default(0),
+    name: varchar("name", { length: 500 }).notNull(),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("idx_episode_sources_episode_id").on(table.episodeId)]
+);
+
+export const episodeSourcesRelations = relations(episodeSources, ({ one }) => ({
+  episode: one(episodes, {
+    fields: [episodeSources.episodeId],
+    references: [episodes.id],
+  }),
 }));
 
 // ─── Jobs (one row per pipeline step per episode) ────────────────────
@@ -177,5 +205,6 @@ export const ttsVoices = pgTable(
 export type User = typeof users.$inferSelect;
 export type Episode = typeof episodes.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
+export type EpisodeSource = typeof episodeSources.$inferSelect;
 export type PodcastSettings = typeof podcastSettings.$inferSelect;
 export type TtsVoice = typeof ttsVoices.$inferSelect;

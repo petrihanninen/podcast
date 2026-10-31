@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../database.js";
+import { settings } from "../config.js";
 import { episodes, podcastSettings, type User } from "../schema.js";
 import { requireAuth, requireAdmin } from "../auth.js";
 import { episodeCreateJsonSchema, settingsUpdateSchema } from "../validation.js";
@@ -9,6 +10,7 @@ import {
   deleteEpisode,
   getEpisode,
   listEpisodes,
+  listEpisodeSources,
   retryEpisode,
 } from "../services/episode.js";
 import { getTtsProgress } from "../view-helpers.js";
@@ -18,20 +20,28 @@ export async function apiRoutes(app: FastifyInstance) {
   // Health check
   app.get("/api/health", async () => ({ status: "ok" }));
 
+  app.get("/api/me", async (request, reply) => {
+    const user: User = await requireAuth(request, reply);
+    return { id: user.id, email: user.email, isAdmin: user.isAdmin };
+  });
+
   // ─── Episodes ────────────────────────────────────────────────
   app.post("/api/episodes", async (request, reply) => {
     const user: User = await requireAuth(request, reply);
     const data = episodeCreateJsonSchema.parse(request.body);
     const episode = await createEpisode(
-      data.topic,
-      data.title,
-      data.description,
-      data.target_length_minutes,
+      {
+        topic: data.topic,
+        title: data.title,
+        description: data.description,
+        targetLengthMinutes: data.target_length_minutes,
+        sources: data.sources,
+        webSearch: data.web_search,
+      },
       user.id
     );
-    // Refetch with jobs
     const full = await getEpisode(episode.id, user.id);
-    return full;
+    return reply.code(201).send({ ...full, url: `${settings.baseUrl}/episodes/${episode.id}` });
   });
 
   app.get("/api/episodes", async (request, reply) => {
@@ -50,7 +60,13 @@ export async function apiRoutes(app: FastifyInstance) {
       if (!episode) {
         return reply.code(404).send({ error: "Episode not found" });
       }
-      return { ...episode, ttsProgress: getTtsProgress(episode) };
+      const sources = await listEpisodeSources(episode.id);
+      return {
+        ...episode,
+        sources,
+        ttsProgress: getTtsProgress(episode),
+        url: `${settings.baseUrl}/episodes/${episode.id}`,
+      };
     }
   );
 

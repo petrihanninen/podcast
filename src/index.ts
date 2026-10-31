@@ -10,7 +10,7 @@ import { authRoutes } from "./routes/auth.js";
 import { feedRoutes } from "./routes/feed.js";
 import { pageRoutes } from "./routes/pages.js";
 
-const app = Fastify({ logger: false });
+const app = Fastify({ logger: false, bodyLimit: 4_500_000 });
 
 await app.register(fastifyCookie);
 await app.register(fastifyFormbody);

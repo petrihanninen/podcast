@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { eq } from "drizzle-orm";
 import type { FastifyRequest, FastifyReply } from "fastify";
@@ -99,20 +99,50 @@ export function getCurrentUser(request: FastifyRequest): string | null {
   return verifySessionCookie(cookie);
 }
 
-export async function requireAuth(
-  request: FastifyRequest,
-  reply: FastifyReply
-): Promise<User> {
-  const sub = getCurrentUser(request);
-  if (!sub) {
-    reply.code(401).send({ error: "Not authenticated" });
-    throw new Error("Not authenticated");
+export function generateApiToken(): string {
+  return `pod_${randomBytes(24).toString("base64url")}`;
+}
+
+function bearerToken(request: FastifyRequest): string | null {
+  const header = request.headers.authorization;
+  if (!header) return null;
+  const match = /^Bearer\s+(\S+)$/i.exec(header);
+  return match ? match[1] : null;
+}
+
+async function findUser(request: FastifyRequest): Promise<User | null> {
+  const token = bearerToken(request);
+  if (token) {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.apiToken, token))
+      .limit(1);
+    return user ?? null;
   }
+  const sub = getCurrentUser(request);
+  if (!sub) return null;
   const [user] = await db
     .select()
     .from(users)
     .where(eq(users.shooSub, sub))
     .limit(1);
+  return user ?? null;
+}
+
+export async function requireAuth(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<User> {
+  if (!bearerToken(request) && !getCurrentUser(request)) {
+    reply.code(401).send({ error: "Not authenticated" });
+    throw new Error("Not authenticated");
+  }
+  const user = await findUser(request);
+  if (!user && bearerToken(request)) {
+    reply.code(401).send({ error: "Invalid API token" });
+    throw new Error("Invalid API token");
+  }
   if (!user || !user.enabled) {
     reply.code(403).send({ error: "Not registered or account disabled" });
     throw new Error("Not registered");

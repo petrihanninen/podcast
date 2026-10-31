@@ -136,9 +136,17 @@
 </dl>
 
 <details class="panel" open>
-  <summary class="panel-summary">Topic</summary>
+  <summary class="panel-summary">{% if sources and sources|length > 0 %}Brief{% else %}Topic{% endif %}</summary>
   <div class="panel-body">
     <p>{{ episode.topic }}</p>
+    {% if sources and sources|length > 0 %}
+    <p class="field-label">Sources</p>
+    <ul class="notes">
+      {% for source in sources %}
+      <li class="note"><span class="note-text">{{ source.name }}</span><span class="muted">{{ source.chars | intcomma }} chars</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
   </div>
 </details>
 

@@ -83,6 +83,19 @@
     <p class="muted">Subscribe to your podcast feed at:</p>
     <code class="code-block">/feed/{{ user.feedToken }}.xml</code>
   </section>
+
+  <section class="section" id="api">
+    <h2 class="section-title">API</h2>
+    <p class="muted">Create episodes from scripts and agents by sending this token as <code>Authorization: Bearer …</code> to <code>POST /api/episodes</code>. Regenerating invalidates the old token.</p>
+    {% if user.apiToken %}
+    <code class="code-block">{{ user.apiToken }}</code>
+    {% else %}
+    <p class="muted">No token yet.</p>
+    {% endif %}
+    <form method="post" action="/settings/api-token" class="actions">
+      <button type="submit" class="btn">{% if user.apiToken %}Regenerate token{% else %}Generate token{% endif %}</button>
+    </form>
+  </section>
 </div>
 
 <div id="tab-transcript" role="tabpanel" hidden>

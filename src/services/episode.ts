@@ -1,7 +1,7 @@
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, asc, desc, sql } from "drizzle-orm";
 import { start } from "workflow/api";
 import { db } from "../database.js";
-import { episodes } from "../schema.js";
+import { episodes, episodeSources } from "../schema.js";
 import { createLogger } from "../log.js";
 import { generateTitle } from "./transcript.js";
 import { deletePrefix } from "./storage.js";
@@ -17,31 +17,62 @@ async function startPipeline(episodeId: string, fromStep: PipelineStep): Promise
   return run.runId;
 }
 
-export async function createEpisode(
-  topic: string,
-  title: string | null | undefined,
-  description: string | null | undefined,
-  targetLengthMinutes: number,
-  userId: string
-) {
-  if (!title) {
-    title = (await generateTitle(topic)) ?? topic.slice(0, 100);
-  }
+export interface EpisodeSourceInput {
+  name: string;
+  content: string;
+}
+
+export interface CreateEpisodeInput {
+  topic: string;
+  title?: string | null;
+  description?: string | null;
+  targetLengthMinutes: number;
+  sources?: EpisodeSourceInput[];
+  webSearch?: boolean;
+}
+
+export async function createEpisode(input: CreateEpisodeInput, userId: string) {
+  const sources = input.sources ?? [];
+  const title = input.title || (await generateTitle(input.topic)) || input.topic.slice(0, 100);
 
   const [episode] = await db
     .insert(episodes)
     .values({
       userId,
-      title: title!,
-      topic,
-      description: description ?? null,
-      targetLengthMinutes,
+      title,
+      topic: input.topic,
+      description: input.description ?? null,
+      targetLengthMinutes: input.targetLengthMinutes,
+      webSearch: input.webSearch ?? sources.length === 0,
       status: "pending",
     })
     .returning();
 
+  if (sources.length > 0) {
+    await db.insert(episodeSources).values(
+      sources.map((s, position) => ({ episodeId: episode.id, position, name: s.name, content: s.content }))
+    );
+    log.info(
+      "Episode %s: stored %d source(s), %d chars",
+      episode.id,
+      sources.length,
+      sources.reduce((sum, s) => sum + s.content.length, 0)
+    );
+  }
+
   await startPipeline(episode.id, "research");
   return episode;
+}
+
+export async function listEpisodeSources(episodeId: string) {
+  return db
+    .select({
+      name: episodeSources.name,
+      chars: sql<number>`length(${episodeSources.content})`.mapWith(Number),
+    })
+    .from(episodeSources)
+    .where(eq(episodeSources.episodeId, episodeId))
+    .orderBy(asc(episodeSources.position));
 }
 
 export async function listEpisodes(userId: string) {

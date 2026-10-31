@@ -21,6 +21,38 @@ Approximate cost of a 30-minute episode at list prices (October 2026): research 
 
 Alternatives: `RESEARCH_MODEL` accepts `gemini-flash-lite`, `gpt-luna`, `gpt-6-luna` (OpenAI web search costs $0.01 per query); `TRANSCRIPT_MODEL` accepts `gpt-6-luna`, `gemini-flash`, `gemini-flash-lite`, `claude-haiku`.
 
+## API
+
+Generate a token under **Settings → API** and send it as `Authorization: Bearer <token>`; every `/api/*` endpoint accepts it in place of the session cookie.
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/me` | The authenticated user |
+| `POST /api/episodes` | Create an episode (see below); returns `201` with the episode and its page `url` |
+| `GET /api/episodes` | List episodes with pipeline jobs |
+| `GET /api/episodes/:id` | One episode with `status`, `jobs`, `sources`, `audioUrl` when ready |
+| `POST /api/episodes/:id/retry` | Re-run a failed episode from the failed step |
+| `DELETE /api/episodes/:id` | Delete the episode and its audio |
+
+`POST /api/episodes` body:
+
+```json
+{
+  "topic": "Explain the architecture of these codebases, focusing on how they share the design system",
+  "target_length_minutes": 30,
+  "sources": [
+    { "name": "workout/README.md", "content": "..." },
+    { "name": "workout/src/server/db/schema.ts", "content": "..." }
+  ],
+  "web_search": false,
+  "title": "optional fixed title"
+}
+```
+
+`topic` is the brief the episode answers. With `sources` (up to 200 documents, 1.5M characters in total, request body under 4.5 MB) the research step synthesizes the supplied material instead of searching the web; `web_search` defaults to `false` when sources are given and `true` otherwise, and can be enabled alongside sources for extra context. Episode status moves through `pending → researching → writing_transcript → generating_audio → encoding → ready` (or `failed` with `failedStep` and `errorMessage`).
+
+A Claude Code skill that wraps this API (files, directories and PDFs as sources, status polling) lives at `~/.claude/skills/podcast/`.
+
 ## Deploying to Vercel
 
 1. **Database**: add Neon from the Vercel Marketplace (free plan) or create a Neon project yourself; use the pooled connection string as `DATABASE_URL`.
