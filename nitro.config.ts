@@ -10,7 +10,7 @@ export default defineConfig({
   },
   vercel: {
     entryFormat: "node",
-    functions: { maxDuration: 300 },
+    functions: { maxDuration: 300, regions: ["fra1"] },
   },
   ...({ workflow } as object),
 });
