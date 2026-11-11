@@ -125,14 +125,20 @@ audio::-webkit-media-controls-enclosure {
   margin: 0 -0.375rem;
 }
 
-.page {
-  flex: 1;
+.site-header,
+.page,
+.site-footer {
   width: 100%;
   max-width: 56rem;
+  margin-inline: auto;
 }
 
-.page-wide {
+.site:has(.page-wide) :is(.site-header, .page, .site-footer) {
   max-width: 80rem;
+}
+
+.page {
+  flex: 1;
 }
 
 .page-head {
