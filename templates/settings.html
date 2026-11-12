@@ -54,16 +54,16 @@
 
     <div class="field-row">
       <div class="field">
-        <label for="tts_voice_a" class="field-label">Host A voice ID</label>
-        <input type="text" id="tts_voice_a" name="tts_voice_a" class="input" value="{{ settings.ttsVoiceA or '' }}" placeholder="bundled host_a.wav">
+        <label for="tts_voice_a" class="field-label">Host A voice</label>
+        <input type="text" id="tts_voice_a" name="tts_voice_a" class="input" value="{{ settings.ttsVoiceA or '' }}" placeholder="Puck">
       </div>
       <div class="field">
-        <label for="tts_voice_b" class="field-label">Host B voice ID</label>
-        <input type="text" id="tts_voice_b" name="tts_voice_b" class="input" value="{{ settings.ttsVoiceB or '' }}" placeholder="bundled host_b.wav">
+        <label for="tts_voice_b" class="field-label">Host B voice</label>
+        <input type="text" id="tts_voice_b" name="tts_voice_b" class="input" value="{{ settings.ttsVoiceB or '' }}" placeholder="Kore">
       </div>
     </div>
     <p class="field-hint">
-      Optional DeepInfra voice IDs (create a cloned voice in the DeepInfra console). Leave empty to use the bundled LibriVox voices.
+      Gemini prebuilt voice names (Puck, Kore, Charon, Zephyr, Fenrir, Leda, Aoede, …). With <code>TTS_MODEL=chatterbox-turbo</code> these are DeepInfra voice IDs instead; empty means the bundled LibriVox voices.
     </p>
 
     {% if password_required %}
